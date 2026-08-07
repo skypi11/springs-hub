@@ -90,9 +90,24 @@ export default function VerifyAccountNudge() {
     try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch { /* noop */ }
   };
 
+  /** Part chez Ubisoft, et revient sur la page courante. */
+  async function lierTrackmania() {
+    setBusy('trackmania');
+    try {
+      const { url } = await api<{ url: string }>('/api/auth/trackmania/start', {
+        method: 'POST',
+        body: { next: window.location.pathname },
+      });
+      window.location.href = url;
+    } catch {
+      setBusy(null);
+    }
+  }
+
   async function handleVerify(item: VerifyItem) {
     const action = item.action;
     if (!action || action.kind === 'linkInDiscord' || action.kind === 'valorantPaused') return;
+    if (action.kind === 'linkTrackmania') return;
     setBusy(item.game);
     track('account_verify_clicked', { game: item.game, method: action.kind });
     try {
@@ -186,6 +201,31 @@ export default function VerifyAccountNudge() {
             // valorantPaused est déjà filtré de `unverified` ; garde de type.
             if (action.kind === 'valorantPaused') return null;
             const isBusy = busy === item.game;
+
+            // Trackmania : un lien vers Ubisoft, pas un appel d'API. Rien n'a
+            // été « détecté » en amont — c'est le joueur qui va s'authentifier,
+            // et c'est précisément ce qui rend cette preuve la plus solide.
+            if (action.kind === 'linkTrackmania') {
+              return (
+                <div key={item.game}
+                  className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"
+                  style={{ background: 'var(--s-elevated)', border: '1px solid var(--s-border)' }}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <GameTag gameId={item.game} size="sm" />
+                    <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                      Connecte-toi avec <strong style={{ color: 'var(--s-text)' }}>Ubisoft</strong> pour
+                      vérifier ton compte Trackmania.
+                    </span>
+                  </div>
+                  <button type="button" onClick={() => void lierTrackmania()} disabled={isBusy}
+                    className="btn-springs btn-primary bevel-sm inline-flex flex-shrink-0 items-center gap-2"
+                    style={{ opacity: isBusy ? 0.7 : 1, cursor: isBusy ? 'wait' : 'pointer' }}>
+                    {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                    Se connecter avec Ubisoft
+                  </button>
+                </div>
+              );
+            }
 
             if (action.kind === 'linkInDiscord') {
               const isOpen = expanded === item.game;

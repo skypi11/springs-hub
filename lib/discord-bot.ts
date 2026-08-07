@@ -532,6 +532,12 @@ export interface RecruitmentEmbedInput {
   // Niveau jeu (rendu uniquement si pertinent pour le jeu visé).
   rlRank?: string | null;
   pseudoTM?: string | null;
+  /** Le compte Ubisoft/Nadeo est-il lié ? Un pseudo TM non vérifié a été TAPÉ
+   *  par le candidat : le staff doit pouvoir faire la différence avant de lui
+   *  ouvrir un roster. */
+  tmVerified?: boolean;
+  /** Identifiant de compte Nadeo — donne le lien vers la fiche trackmania.io. */
+  tmAccountId?: string | null;
   /** Rang Valorant — n'est transmis QUE s'il vient du sync auto HenrikDev
    *  (source 'henrikdev'), donc un rang présent est toujours vérifié. */
   valorantRank?: string | null;
@@ -586,7 +592,16 @@ export async function postRecruitmentEmbed(channelId: string, input: Recruitment
     fields.push({ name: '🏆 Rang RL', value: input.rlRank.slice(0, 64), inline: true });
   }
   if (input.game === 'trackmania' && input.pseudoTM) {
-    fields.push({ name: '🎯 Pseudo TM', value: input.pseudoTM.slice(0, 64), inline: true });
+    // Le pseudo dit qui c'est ; la mention dit s'il faut le croire. Un pseudo
+    // seul laissait le staff supposer une identité vérifiée qui ne l'était pas.
+    const pseudo = input.pseudoTM.slice(0, 64);
+    fields.push({
+      name: input.tmVerified ? '🎯 Pseudo TM · vérifié' : '🎯 Pseudo TM · déclaratif',
+      value: input.tmVerified && input.tmAccountId
+        ? `[${pseudo}](https://trackmania.io/#/player/${input.tmAccountId})`
+        : pseudo,
+      inline: true,
+    });
   }
   if (input.game === 'valorant') {
     if (input.valorantRank) {

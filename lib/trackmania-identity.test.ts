@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tmIoUrlFromAccountId, tmAccountIdOf, extractAccountIdFromUrl } from './trackmania-identity';
 import { checkProfileCompletion } from './profile-completion';
+import { getVerificationItems } from './account-verification';
 import type { SpringsUser } from '@/types';
 
 const ID = '0a2d1bc0-4aaa-4374-b2db-3d561bdab1c9';
@@ -60,5 +61,32 @@ describe('complétion du profil d’un joueur Trackmania', () => {
 
   it('réclame la liaison quand on n’a ni l’un ni l’autre', () => {
     expect(checkProfileCompletion(base).missing).toContain('compte Ubisoft/Nadeo lié');
+  });
+});
+
+describe('vérification du compte Trackmania', () => {
+  const joueurTM = { games: ['trackmania'] } as unknown as SpringsUser;
+
+  it('ne considère PAS un identifiant de compte comme une preuve', () => {
+    // LA RÈGLE À NE PAS RELÂCHER. `tmAccountId` est aussi écrit par la
+    // synchronisation des trophées, qui lit une API PUBLIQUE : n'importe quel
+    // identifiant recopié le remplirait. Seul `tmVerifiedAt`, posé au retour
+    // d'Ubisoft, atteste que le joueur s'est authentifié.
+    const u = { ...joueurTM, tmAccountId: ID } as SpringsUser;
+    const item = getVerificationItems(u).find((i) => i.game === 'trackmania');
+    expect(item?.verified).toBe(false);
+    expect(item?.action?.kind).toBe('linkTrackmania');
+  });
+
+  it('reconnaît le compte vérifié après le retour d’Ubisoft', () => {
+    const u = { ...joueurTM, tmAccountId: ID, tmVerifiedAt: new Date() } as SpringsUser;
+    const item = getVerificationItems(u).find((i) => i.game === 'trackmania');
+    expect(item?.verified).toBe(true);
+    expect(item?.action).toBeNull();
+  });
+
+  it('ne relance pas un joueur qui ne pratique pas Trackmania', () => {
+    const u = { games: ['rocket_league'] } as unknown as SpringsUser;
+    expect(getVerificationItems(u).some((i) => i.game === 'trackmania')).toBe(false);
   });
 });

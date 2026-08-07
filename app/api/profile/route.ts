@@ -292,6 +292,11 @@ export async function GET(req: NextRequest) {
       ...data,
       ...rlAccountFields,
       valorantAccountVerified,
+      // Trackmania : `tmVerifiedAt` est posé par le retour OAuth Nadeo, donc
+      // par le propriétaire du compte lui-même. L'identifiant sert à bâtir le
+      // lien vers la fiche publique trackmania.io — il n'a rien de secret,
+      // c'est ce que le jeu affiche à tout le monde.
+      tmAccountVerified: !!data.tmVerifiedAt,
       // Gaté sur la visibilité de la connection Riot (cf. plus haut). Le badge
       // « vérifié » reste affiché via le booléen ; seul le lien tracker dépend
       // de ce champ, donc un RiotID masqué = badge vérifié sans lien pour le tiers.

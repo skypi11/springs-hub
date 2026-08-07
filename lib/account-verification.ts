@@ -12,7 +12,7 @@ import type { SpringsUser } from '@/types';
 import { findVerifiedEpicConnection, isValidSteamId64, hasOfficialRlIdentity } from '@/lib/rl-identity';
 import { pickValorantRiotId } from '@/lib/discord-connections';
 
-export type VerifyGame = 'rocket_league' | 'valorant';
+export type VerifyGame = 'rocket_league' | 'valorant' | 'trackmania';
 
 // Message unique (DRY) pour l'état « vérif Valorant en pause ». Discord a retiré
 // les comptes Riot de son API OAuth (juillet 2026, « no replacement ») : on ne
@@ -34,7 +34,12 @@ export type VerifyAction =
   | { kind: 'linkInDiscord'; what: string }
   // Valorant uniquement : plus AUCUNE action possible (Discord a coupé Riot). En
   // attente de la connexion Riot directe (RSO). Informatif, jamais actionnable.
-  | { kind: 'valorantPaused' };
+  | { kind: 'valorantPaused' }
+  // Trackmania : connexion Ubisoft/Nadeo directe. Contrairement aux deux autres,
+  // elle ne dépend d'aucun tiers — ni Discord, ni service de statistiques — et
+  // c'est le propriétaire du compte qui s'authentifie. La plus solide des trois,
+  // et la seule toujours disponible sans réserve.
+  | { kind: 'linkTrackmania'; apiPath: '/api/auth/trackmania/start' };
 
 export type VerifyItem = {
   game: VerifyGame;
@@ -83,11 +88,24 @@ export function getVerificationItems(user: SpringsUser | null): VerifyItem[] {
     items.push({ game: 'valorant', label: 'Valorant', verified, action });
   }
 
+  if (games.includes('trackmania')) {
+    // `tmVerifiedAt` n'est posé que par le retour OAuth Nadeo. `tmAccountId`
+    // seul ne prouve RIEN : la synchronisation des trophées l'écrit aussi
+    // depuis une API publique, sans que personne se soit authentifié.
+    const verified = !!user.tmVerifiedAt;
+    items.push({
+      game: 'trackmania',
+      label: 'Trackmania',
+      verified,
+      action: verified ? null : { kind: 'linkTrackmania', apiPath: '/api/auth/trackmania/start' },
+    });
+  }
+
   return items;
 }
 
 export type VerificationSummary = {
-  /** Nb de jeux vérifiables pratiqués (RL/Valorant). */
+  /** Nb de jeux vérifiables pratiqués (RL / Valorant / Trackmania). */
   verifiable: number;
   verified: number;
   /** Nb d'items vérifiables en 1 clic (connection Discord déjà présente). */

@@ -26,6 +26,7 @@ import DiscordIcon from '@/components/icons/DiscordIcon';
 import { getEffectiveRLPlatform, buildTrackerGgUrl, buildBallchasingUrl, getRLPlatformMeta } from '@/lib/rl-platform';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import ValorantIdentityBadge from '@/components/players/ValorantIdentityBadge';
+import TrackmaniaIdentityBadge from '@/components/players/TrackmaniaIdentityBadge';
 // ReportRankButton est désormais embarqué dans RLIdentityBadge (via canReport)
 import { getConnectionMeta, buildConnectionUrl } from '@/lib/discord-connections';
 import { Link2 } from 'lucide-react';
@@ -721,6 +722,20 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 <div className="p-5 flex-1 flex flex-col">
+                  {/* Statut du compte Ubisoft : ✓ vérifié + lien vers la fiche
+                      publique, ou avertissement si le pseudo n'est que
+                      déclaratif. Miroir des badges RL et Valorant — sans bouton
+                      « signaler » : le pseudo vient de Nadeo, il n'y a rien à
+                      contester. */}
+                  <div className="mb-4">
+                    <TrackmaniaIdentityBadge
+                      games={profile.games}
+                      tmAccountVerified={!!(profile as { tmAccountVerified?: boolean }).tmAccountVerified}
+                      tmDisplayName={profile.pseudoTM}
+                      tmAccountId={profile.tmAccountId}
+                      size="md"
+                    />
+                  </div>
                   {tmStats && (tmStats.trophies !== null || tmStats.cotdBestRank !== null) ? (
                     <div className="space-y-5">
                       {/* Trophées + Niveau */}

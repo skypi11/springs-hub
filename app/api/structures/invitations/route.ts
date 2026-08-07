@@ -599,6 +599,8 @@ export async function POST(req: NextRequest) {
               message: typeof message === 'string' ? message.trim() || null : null,
               rlRank: targetData.rlStats?.rank || targetData.rlRank || null,
               pseudoTM: targetData.pseudoTM || null,
+              tmVerified: Boolean(targetData.tmVerifiedAt),
+              tmAccountId: targetData.tmAccountId || null,
               // Rang Valorant : uniquement s'il vient du sync auto (vérifié).
               valorantRank: targetData.valorantRankSource === 'henrikdev' ? (targetData.valorantRank || null) : null,
               riotId: (() => {

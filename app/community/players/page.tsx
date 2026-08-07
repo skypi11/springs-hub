@@ -17,6 +17,7 @@ import { SkeletonGrid } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import RLIdentityBadge from '@/components/players/RLIdentityBadge';
 import ValorantIdentityBadge from '@/components/players/ValorantIdentityBadge';
+import TrackmaniaIdentityBadge from '@/components/players/TrackmaniaIdentityBadge';
 import CountryFlag from '@/components/ui/CountryFlag';
 import RankBadge, { getRankTierConfig } from '@/components/rl/RankBadge';
 import ValorantRankBadge from '@/components/valorant/RankBadge';
@@ -57,6 +58,8 @@ type PlayerCard = {
   pseudoTM: string;
   valorantRank: string;
   valorantAccountVerified: boolean;
+  tmAccountVerified: boolean;
+  tmAccountId: string;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -126,6 +129,22 @@ function matchPositions(playerRole: string, playerGames: string[], positions: Op
     matches.push(p);
   }
   return matches;
+}
+
+/** Le titre du ✓ doré : quels comptes de jeu sont vérifiés, nommés. */
+function titreComptesVerifies(p: {
+  rlAccountVerified: boolean;
+  valorantAccountVerified: boolean;
+  tmAccountVerified: boolean;
+}): string {
+  const jeux = [
+    p.rlAccountVerified && 'Rocket League',
+    p.valorantAccountVerified && 'Valorant',
+    p.tmAccountVerified && 'Trackmania',
+  ].filter(Boolean) as string[];
+  if (jeux.length === 0) return '';
+  if (jeux.length === 1) return `Compte ${jeux[0]} vérifié`;
+  return `Comptes ${jeux.slice(0, -1).join(', ')} et ${jeux[jeux.length - 1]} vérifiés`;
 }
 
 export default function PlayersPage() {
@@ -928,11 +947,9 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
         <div>
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="text-sm font-bold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</p>
-            {(p.rlAccountVerified || p.valorantAccountVerified) && (
+            {titreComptesVerifies(p) && (
               <span
-                title={p.rlAccountVerified && p.valorantAccountVerified
-                  ? 'Comptes RL et Valorant vérifiés'
-                  : p.rlAccountVerified ? 'Compte RL vérifié' : 'Compte Valorant vérifié'}
+                title={titreComptesVerifies(p)}
                 style={{ color: 'var(--s-gold)', display: 'inline-flex', flexShrink: 0 }}
               >
                 <ShieldCheck size={12} />
@@ -1015,6 +1032,17 @@ function PlayerItem({ p, matches, canShortlist, isShortlisted, onToggleShortlist
                     <span className="text-xs font-semibold truncate" style={{ color: valTier.color }}>{p.valorantRank}</span>
                   </div>
                 </>
+              );
+            }
+            // Trackmania non vérifié → même avertissement neutre que les autres
+            // jeux. La preuve existe et tient en un clic : ne rien dire
+            // laisserait croire qu'un pseudo tapé à la main en vaut un autre.
+            if (p.games.includes('trackmania') && !p.tmAccountVerified) {
+              return (
+                <div style={{ pointerEvents: 'auto' }}>
+                  <TrackmaniaIdentityBadge games={p.games} tmAccountVerified={false}
+                    size="sm" tone="subtle" />
+                </div>
               );
             }
             if (p.pseudoTM) {
@@ -1116,11 +1144,9 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
 
         <div className="flex items-center gap-1.5 min-w-0" style={{ flex: '0 0 180px' }}>
           <span className="text-sm font-semibold truncate" style={{ color: 'var(--s-text)' }}>{p.displayName}</span>
-          {(p.rlAccountVerified || p.valorantAccountVerified) && (
+          {titreComptesVerifies(p) && (
             <span
-              title={p.rlAccountVerified && p.valorantAccountVerified
-                ? 'Comptes RL et Valorant vérifiés'
-                : p.rlAccountVerified ? 'Compte RL vérifié' : 'Compte Valorant vérifié'}
+              title={titreComptesVerifies(p)}
               style={{ color: 'var(--s-gold)', flexShrink: 0, display: 'inline-flex' }}
             >
               <ShieldCheck size={12} />
@@ -1167,6 +1193,13 @@ function PlayerRow({ p, matches, canShortlist, isShortlisted, onToggleShortlist,
               );
             }
             if (p.games.includes('valorant') && !p.valorantAccountVerified) {
+              return (
+                <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
+                  <ShieldAlert size={11} /> Non vérifié
+                </span>
+              );
+            }
+            if (p.games.includes('trackmania') && !p.tmAccountVerified) {
               return (
                 <span className="inline-flex items-center gap-1" style={{ color: 'var(--s-text-muted)' }}>
                   <ShieldAlert size={11} /> Non vérifié

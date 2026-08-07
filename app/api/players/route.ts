@@ -69,6 +69,8 @@ export type PlayerCard = {
   valorantRank: string;
   /** Vérifié = PUUID Riot stocké OU connection Discord riotgames liée (miroir RL). */
   valorantAccountVerified: boolean;
+  tmAccountVerified: boolean;
+  tmAccountId: string;
   structures: EnrichedStructure[];
   createdAt: string | null;
 };
@@ -254,6 +256,11 @@ export async function GET(req: NextRequest) {
         valorantRank: data.valorantRankSource === 'henrikdev' ? ((data.valorantRank as string) || '') : '',
         valorantAccountVerified: !!data.valorantPuuid
           || !!pickValorantRiotId(data.discordConnections as DiscordConnection[] | undefined),
+        // Trackmania : la connexion Ubisoft/Nadeo est la preuve la plus solide
+        // du site — le propriétaire du compte s'authentifie chez Ubisoft. Ce
+        // booléen ne révèle rien, il s'expose à tous.
+        tmAccountVerified: !!data.tmVerifiedAt,
+        tmAccountId: (data.tmAccountId as string) || '',
         structures: enrichedStructures,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
       };
