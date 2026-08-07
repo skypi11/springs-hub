@@ -1,6 +1,8 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createNotification } from '@/lib/notifications';
+import { alerterPlacePrise, donnerRoleInscrit } from '@/lib/mania-cup-alerts';
+import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { sendManiaCupDM } from '@/lib/discord-bot';
 import {
   MANIA_CUP_REGISTRATIONS,
@@ -126,6 +128,12 @@ export async function applyOrderItem(
   // changé : un rejeu de notification ne doit pas lui renvoyer un message.
   if (changed && outcome.kind === 'confirm_player') {
     await notifyPlayerPaid(db, outcome.uid, item).catch(() => {});
+    // L'ORGANISATION apprend qu'une place vient de partir, et le joueur reçoit
+    // son rôle sur le Discord de Springs. Ni l'un ni l'autre ne doit faire
+    // échouer le traitement du paiement : l'argent est encaissé, c'est ce qui
+    // compte, le reste se rattrape depuis la console.
+    await alerterPlacePriseDepuisPaiement(db, outcome.uid).catch(() => {});
+    await donnerRoleInscrit(db, outcome.uid).catch(() => {});
   }
 
   // Un règlement encaissé qu'on ne sait pas rattacher ne doit jamais rester
@@ -437,4 +445,20 @@ async function notifyStaffOfOrphanPayment(
     ),
     new Promise((resolve) => setTimeout(resolve, 10_000)),
   ]);
+}
+
+
+/** Qui vient de régler, et où en est la jauge — pour le message au staff. */
+async function alerterPlacePriseDepuisPaiement(db: Firestore, uid: string): Promise<void> {
+  const [snap, reglees, settings] = await Promise.all([
+    db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get(),
+    db.collection(MANIA_CUP_REGISTRATIONS).where('status', '==', 'confirmed').count().get(),
+    getManiaCupSettings(db),
+  ]);
+  const reg = snap.data() as ManiaCupRegistration | undefined;
+  await alerterPlacePrise(db, {
+    qui: reg?.tmDisplayName || `${reg?.firstName ?? ''} ${reg?.lastName ?? ''}`.trim() || uid,
+    placesReglees: reglees.data().count,
+    placesTotales: settings.maxPlayers,
+  });
 }

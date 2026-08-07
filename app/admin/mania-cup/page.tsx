@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, AlertTriangle, ScrollText, Save,
-  Search, Download, IdCard, ExternalLink,
+  Search, Download, IdCard, ExternalLink, ShieldCheck,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import { downloadCsv } from '@/lib/csv';
@@ -123,6 +123,25 @@ export default function AdminManiaCupPage() {
       void qc.invalidateQueries({ queryKey: ['admin', 'mania-cup'] });
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Action refusée'),
+  });
+
+  const syncRoles = useMutation({
+    mutationFn: () =>
+      api<{ donnes: number; absentsDuServeur: string[] }>('/api/admin/mania-cup', {
+        method: 'PATCH',
+        body: { action: 'sync_discord_roles' },
+      }),
+    onSuccess: (r) => {
+      const absents = r.absentsDuServeur ?? [];
+      // On NOMME ceux qui manquent : « 3 absents » n'aide pas à agir, alors
+      // qu'une liste permet d'aller leur envoyer l'invitation du serveur.
+      setError(
+        absents.length === 0
+          ? null
+          : `${r.donnes} rôle(s) donné(s). Pas encore sur le Discord Springs : ${absents.join(', ')}.`
+      );
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Attribution refusée'),
   });
 
   async function openDocument(uid: string, kind: string) {
@@ -396,6 +415,21 @@ export default function AdminManiaCupPage() {
           >
             <Download size={15} aria-hidden />
             Liste d’émargement
+          </button>
+
+          {/* Le rôle suit normalement le règlement. Ce bouton referme l'écart
+              des cas que Discord ne sait pas nous signaler : quelqu'un qui a
+              payé avant de rejoindre le serveur, ou qui l'a rejoint depuis. */}
+          <button
+            onClick={() => syncRoles.mutate()}
+            disabled={syncRoles.isPending}
+            className="btn-springs btn-secondary bevel-sm inline-flex items-center gap-2 disabled:opacity-40"
+            title="Donner le rôle Discord à tous ceux qui ont réglé"
+          >
+            {syncRoles.isPending
+              ? <Loader2 size={15} className="animate-spin" aria-hidden />
+              : <ShieldCheck size={15} aria-hidden />}
+            Rôles Discord
           </button>
 
           <Link

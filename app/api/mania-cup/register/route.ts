@@ -11,6 +11,7 @@ import { clampString } from '@/lib/validation';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import { decideTraceReglement } from '@/lib/mania-cup-rulebook-trace';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { alerterDossierDepose } from '@/lib/mania-cup-alerts';
 import { placesReservees } from '@/lib/mania-cup-waitlist';
 import { lireFileAttente } from '@/lib/mania-cup-waitlist-server';
 import { MANIA_CUP_PAYMENTS } from '@/lib/helloasso/apply';
@@ -413,6 +414,15 @@ export async function POST(req: NextRequest) {
     }
 
     await docRef.set(payload, { merge: true });
+
+    // Personne n'était prévenu d'une nouvelle inscription — ni sur le site, ni
+    // sur Discord. On n'alerte QUE sur un dossier neuf : une correction de date
+    // de naissance ne réveille pas l'organisation.
+    if (!prev) {
+      void alerterDossierDepose(db, {
+        qui: (payload.tmDisplayName as string) || `${firstName} ${lastName}`.trim() || uid,
+      }).catch(() => {});
+    }
 
     // Le formulaire de la LAN demande le pays et la date de naissance ; le
     // profil Aedral les réclame aussi. Les reverser évite de faire saisir deux

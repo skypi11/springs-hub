@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
   SETTINGS_BOUNDS,
   normalizeNumber,
+  idDiscord,
   getManiaCupSettings,
   type ManiaCupSettings,
   type NumericSettingKey,
@@ -165,9 +166,33 @@ export async function PUT(req: NextRequest) {
         ? clampString(body.helloAssoCodeField, 120).trim() || DEFAULT_SETTINGS.helloAssoCodeField
         : previous.helloAssoCodeField;
 
+    // Identifiants Discord — même règle partielle que le reste : un champ
+    // absent du corps garde sa valeur. Un identifiant mal formé est REFUSÉ au
+    // lieu d'être enregistré vide : sinon l'organisateur croit avoir branché le
+    // salon, et se demande pendant des semaines pourquoi le bot ne dit rien.
+    const idsDiscord = {} as Record<'staffChannelId' | 'participantRoleId', string>;
+    const idsRejetes: string[] = [];
+    for (const key of ['staffChannelId', 'participantRoleId'] as const) {
+      if (body[key] === undefined) {
+        idsDiscord[key] = previous[key];
+        continue;
+      }
+      const brut = clampString(body[key], 64).trim();
+      const propre = idDiscord(brut);
+      if (brut && !propre) idsRejetes.push(key);
+      idsDiscord[key] = propre;
+    }
+    if (idsRejetes.length > 0) {
+      return NextResponse.json(
+        { error: 'Un identifiant Discord est une suite de 17 à 20 chiffres.' },
+        { status: 400 }
+      );
+    }
+
     const settings: ManiaCupSettings = {
       ...urls,
       ...numbers,
+      ...idsDiscord,
       helloAssoTierMap: tierMap,
       helloAssoCodeField: codeField,
     };

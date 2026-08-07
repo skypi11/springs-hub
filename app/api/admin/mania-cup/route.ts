@@ -8,6 +8,7 @@ import { clampString } from '@/lib/validation';
 import { countries } from '@/lib/countries';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { createNotification } from '@/lib/notifications';
+import { donnerRoleInscrit, retirerRoleInscrit } from '@/lib/mania-cup-alerts';
 import {
   MANIA_CUP_WAITLIST, prochainAInviter, echeanceInvitation, fileEnAttente,
   DELAI_INVITATION_HEURES,
@@ -261,6 +262,14 @@ export async function PATCH(req: NextRequest) {
         paidAt: paid ? FieldValue.serverTimestamp() : null,
         updatedAt: FieldValue.serverTimestamp(),
       });
+      // Le rôle Discord suit le règlement, quel que soit le chemin : marqué à
+      // la main ici, ou rattaché par le webhook. Sans ça, un joueur confirmé
+      // depuis la console n'aurait jamais son rôle.
+      if (paid) {
+        void donnerRoleInscrit(db, target).catch(() => {});
+      } else {
+        void retirerRoleInscrit(db, target).catch(() => {});
+      }
       await writeAdminAuditLog(db, {
         action: paid ? 'mania_cup_marked_paid' : 'mania_cup_marked_unpaid',
         adminUid: uid,
@@ -275,6 +284,9 @@ export async function PATCH(req: NextRequest) {
     // Annulation par l'organisation. Distincte de « marquer non payé », qui
     // remet seulement le dossier en attente : ici la place est rendue.
     if (action === 'cancel') {
+      // Une inscription retirée rend la place ET l'accès : garder le rôle
+      // laisserait quelqu'un dans les salons des inscrits sans y avoir droit.
+      void retirerRoleInscrit(db, target).catch(() => {});
       const reason = clampString(typeof body?.reason === 'string' ? body.reason : '', 400);
       await docRef.update({
         status: 'cancelled',
@@ -374,6 +386,58 @@ export async function PATCH(req: NextRequest) {
      *
      *  Quand la boutique existera, elle écrira le même champ avec son montant
      *  réel : ce chemin restera le rattrapage. */
+    /** Donner le rôle à tous ceux qui ont réglé et ne l'ont pas encore.
+     *
+     *  Indispensable et pas seulement pour rattraper : un joueur peut très bien
+     *  régler son inscription AVANT de rejoindre le serveur Discord. Discord
+     *  n'a aucun moyen de nous prévenir quand il arrive ; c'est donc ce bouton
+     *  qui referme l'écart, autant de fois qu'il le faut. */
+    if (action === 'sync_discord_roles') {
+      const snap = await db
+        .collection(MANIA_CUP_REGISTRATIONS)
+        .where('status', '==', 'confirmed')
+        .get();
+
+      const absents: string[] = [];
+      let donnes = 0;
+      let raisonBloquante: string | null = null;
+
+      for (const doc of snap.docs) {
+        const r = doc.data() as { tmDisplayName?: string };
+        const res = await donnerRoleInscrit(db, doc.id);
+        if (res.ok) { donnes++; continue; }
+        if (res.raison === 'pas_membre') {
+          absents.push(r.tmDisplayName || doc.id);
+          continue;
+        }
+        // Rôle non configuré ou introuvable : inutile de marteler l'API
+        // Discord soixante-quatre fois pour la même cause.
+        raisonBloquante = res.raison;
+        break;
+      }
+
+      if (raisonBloquante === 'role_non_configure') {
+        return NextResponse.json(
+          { error: 'Aucun rôle n’est configuré — renseigne-le dans l’onglet Configuration.' },
+          { status: 400 }
+        );
+      }
+      if (raisonBloquante === 'role_introuvable') {
+        return NextResponse.json(
+          { error: 'Le rôle configuré n’existe plus sur le serveur Discord.' },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({
+        ok: true,
+        donnes,
+        // Nommés, pas comptés : l'organisation doit pouvoir leur dire de
+        // rejoindre le serveur.
+        absentsDuServeur: absents,
+      });
+    }
+
     // ── Liste d'attente ──────────────────────────────────────────────────────
 
     /** Inviter quelqu'un à prendre la place qui vient de se libérer.

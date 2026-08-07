@@ -34,6 +34,7 @@ export type NotificationType =
    *  la place n'a pas pu être confirmée. */
   | 'mania_cup_payment_orphan'
   | 'mania_cup_waitlist_invited'
+  | 'mania_cup_registration'
   | 'generic';
 
 export type NotificationPayload = {

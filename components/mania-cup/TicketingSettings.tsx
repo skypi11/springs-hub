@@ -225,6 +225,55 @@ export default function TicketingSettings() {
               </div>
             </div>
 
+            {/* ---- Discord ---- */}
+            <h3 className="mt-8 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+              <Ticket size={15} className="text-[#a364d9]" aria-hidden />
+              Discord
+            </h3>
+            <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+              Pour obtenir un identifiant : dans Discord, active le mode développeur
+              (Paramètres → Avancés), puis clic droit sur le salon ou le rôle →
+              <em> Copier l’identifiant</em>.
+            </p>
+            <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div>
+                <label htmlFor="staffChannelId" className="block text-sm font-semibold">
+                  Salon des alertes
+                </label>
+                <input
+                  id="staffChannelId"
+                  value={current.staffChannelId}
+                  onChange={(e) => set('staffChannelId', e.target.value)}
+                  placeholder="123456789012345678"
+                  className="mt-2 w-full border border-white/15 bg-black/40 px-3 py-2 font-mono text-white outline-none focus:border-[#00D936]"
+                />
+                <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Le bot y annonce chaque dossier déposé et chaque règlement reçu.
+                  Vide : rien n’est posté sur Discord, les notifications du site
+                  partent quand même.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="participantRoleId" className="block text-sm font-semibold">
+                  Rôle des inscrits
+                </label>
+                <input
+                  id="participantRoleId"
+                  value={current.participantRoleId}
+                  onChange={(e) => set('participantRoleId', e.target.value)}
+                  placeholder="123456789012345678"
+                  className="mt-2 w-full border border-white/15 bg-black/40 px-3 py-2 font-mono text-white outline-none focus:border-[#00D936]"
+                />
+                <p className="mt-1.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Donné sur le Discord de Springs E-Sport dès qu’une inscription est
+                  réglée, retiré si elle est retirée. Le rôle du bot doit être placé
+                  <em> au-dessus</em> de celui-ci dans la hiérarchie du serveur, sinon
+                  Discord refuse l’attribution.
+                </p>
+              </div>
+            </div>
+
             {/* ---- Liens ---- */}
             <h3 className="mt-8 flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
               <Ticket size={15} className="text-[#a364d9]" aria-hidden />

@@ -47,6 +47,22 @@ export interface ManiaCupSettings {
   pcRentalEuros: number;
   prizePoolEuros: number;
   maxPlayers: number;
+  /**
+   * Salon Discord où le bot annonce les inscriptions et les règlements.
+   *
+   * Vide = personne n'est prévenu sur Discord ; les notifications du site
+   * partent quand même. On ne devine pas un salon : poster dans le mauvais
+   * exposerait des noms de joueurs à tout un serveur.
+   */
+  staffChannelId: string;
+  /**
+   * Rôle donné sur le Discord de Springs E-Sport à qui a réglé sa place.
+   *
+   * Vide = aucun rôle n'est attribué. L'identifiant se lit dans Discord
+   * (Paramètres du serveur → Rôles → clic droit → Copier l'identifiant, mode
+   * développeur activé).
+   */
+  participantRoleId: string;
 }
 
 export const DEFAULT_SETTINGS: ManiaCupSettings = {
@@ -60,6 +76,8 @@ export const DEFAULT_SETTINGS: ManiaCupSettings = {
   pcRentalEuros: 0,
   prizePoolEuros: MANIA_CUP.prizePoolEuros,
   maxPlayers: MANIA_CUP.maxPlayers,
+  staffChannelId: '',
+  participantRoleId: '',
 };
 
 /** Bornes de saisie. La jauge a un plancher à 1 : une valeur à zéro fermerait
@@ -83,6 +101,16 @@ export function normalizeNumber(key: NumericSettingKey, raw: unknown): number {
   if (!Number.isFinite(n)) return DEFAULT_SETTINGS[key];
   const { min, max } = SETTINGS_BOUNDS[key];
   return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/** Un identifiant Discord tel qu'on le colle : 17 à 20 chiffres. On accepte les
+ *  formes décorées (`<#123>`, `<@&123>`) parce que c'est ce que Discord met
+ *  dans le presse-papier quand on copie une mention plutôt qu'un identifiant. */
+export function idDiscord(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return '';
+  const chiffres = s.replace(/[^0-9]/g, '');
+  return /^[0-9]{17,20}$/.test(chiffres) ? chiffres : '';
 }
 
 export function mergeSettings(data: FirebaseFirestore.DocumentData | undefined): ManiaCupSettings {
@@ -115,6 +143,11 @@ export function mergeSettings(data: FirebaseFirestore.DocumentData | undefined):
         : DEFAULT_SETTINGS.prizePoolEuros,
     maxPlayers:
       d.maxPlayers != null ? normalizeNumber('maxPlayers', d.maxPlayers) : DEFAULT_SETTINGS.maxPlayers,
+    // Identifiants Discord : que des chiffres. Nettoyer ici évite qu'un
+    // copier-coller avec une espace ou un `<#…>` parte tel quel dans une URL
+    // d'API et provoque un 404 incompréhensible.
+    staffChannelId: idDiscord(d.staffChannelId),
+    participantRoleId: idDiscord(d.participantRoleId),
   };
 }
 
