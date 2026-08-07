@@ -113,6 +113,33 @@ try {
       return trouves;
     });
 
+    // Sur le grand format, « MANIA CUP » doit être exactement en face de la
+    // dotation — demande explicite. C'est obtenu par la grille (rangée 2), donc
+    // par construction ; mais un futur changement de texte pourrait faire
+    // grandir une rangée voisine et déplacer l'un sans l'autre. On le mesure
+    // plutôt que de l'espérer. Deux pixels de tolérance : les arrondis de
+    // rendu, pas un décalage visible.
+    if (nom === 'grand') {
+      const ecart = await page.evaluate(() => {
+        const milieu = (s) => {
+          const el = document.querySelector(s);
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return r.top + r.height / 2;
+        };
+        const a = milieu('.name');
+        const b = milieu('.prize');
+        return a === null || b === null ? null : Math.abs(a - b);
+      });
+      if (ecart === null) {
+        console.log('      alignement : blocs introuvables (.name / .prize)');
+        process.exitCode = 1;
+      } else if (ecart > 2) {
+        console.log(`      alignement : « MANIA CUP » et la dotation décalés de ${ecart.toFixed(1)} px`);
+        process.exitCode = 1;
+      }
+    }
+
     const grand = await page.screenshot({ type: 'png' });
     await page.close();
 

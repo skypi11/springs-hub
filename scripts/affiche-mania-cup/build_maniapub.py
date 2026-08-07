@@ -266,29 +266,61 @@ GRAND = u"""
   background:radial-gradient(ellipse at center, rgba(0,217,54,.20) 0%, rgba(0,217,54,.04) 48%, rgba(7,5,11,0) 74%); }
 .checker { height:26px; background-size:26px 26px; opacity:.8; }
 .checker.top { top:0; } .checker.bot { bottom:0; opacity:.45; }
-.inner { align-items:stretch; padding:70px 92px 62px; gap:70px; }
+/* Composition en GRILLE, pas en deux colonnes indépendantes.
+   ------------------------------------------------------------------
+   Demande : « MANIA CUP pile en face du 1 200 € ». Deux colonnes qui se
+   remplissent chacune dans leur coin ne peuvent pas garantir ça — il faudrait
+   un décalage réglé à la main, qui se romprait au premier changement de texte
+   (le montant, la date, la traduction anglaise).
 
-.col-g { flex:1.25; display:flex; flex-direction:column; min-width:0; }
-.col-d { flex:1; display:flex; flex-direction:column; justify-content:center; min-width:0; }
+   La grille rend l'alignement STRUCTUREL : les deux colonnes partagent leurs
+   rangées, et la rangée du milieu ne contient que le titre à gauche et la
+   dotation à droite, toutes deux centrées dans la rangée.
+
+     rangée 1   logo · présente                |  accroche · slogan
+     rangée 2   LE TITRE ENTIER                |  1 200 €
+     rangée 3   sponsors                       |  chiffres · prix · adresse
+
+   Le titre reste d'un SEUL bloc. Un premier essai le découpait en trois
+   rangées — surtitre, nom, trait+date — pour poser le nom sur sa propre
+   rangée : l'alignement était juste, mais l'espace libre s'insérait entre les
+   morceaux et le trait vert se retrouvait à 250 px sous le nom, orphelin.
+
+   Le nom tombe pile au milieu du bloc grâce à deux réserves de MÊME hauteur,
+   l'une au-dessus (contenu calé en bas), l'autre en dessous (calé en haut).
+   Centrer le bloc revient donc à centrer le nom. Le contrôle de rendu mesure
+   ce que ça donne vraiment : si un texte plus long faisait grandir une réserve,
+   l'écart apparaîtrait et la fabrication échouerait.
+
+   L'espace libre se répartit ENTRE les rangées plutôt qu'au bout de la grille :
+   donné d'un seul tenant, il ouvrait un vide de 400 px en travers du visuel. */
+.inner { display:grid; grid-template-columns:1.25fr 1fr;
+  column-gap:70px; padding:70px 92px 62px;
+  align-items:start; align-content:space-between; }
+.r2 { align-self:center; }
+.r3 { align-self:end; }
+
+/* Les DEUX réserves sont des boîtes flexibles, et pas seulement celle du haut.
+   En bloc ordinaire, la marge haute du trait vert s'échappait de la réserve du
+   bas au lieu de rester dedans (fusion des marges) : le bloc gagnait 18 px sous
+   le nom, et le nom se retrouvait 9 px trop haut. Une boîte flexible ne fusionne
+   pas les marges de ses enfants. Le contrôle de rendu a chiffré l'écart. */
+.titre .haut { min-height:150px; display:flex; flex-direction:column; justify-content:flex-end; }
+.titre .bas  { min-height:150px; display:flex; flex-direction:column; }
 
 .logo { width:290px; filter:drop-shadow(0 4px 14px rgba(0,0,0,.8)); }
 .presente { margin-top:8px; font-size:20px; letter-spacing:10px; text-indent:10px; color:#9d98b3; }
-/* Le bloc du titre flotte au MILIEU de ce qui reste entre le logo et les
-   sponsors. Sans ça il restait collé en haut et tout l'espace libre tombait
-   d'un seul bloc en dessous : un grand vide sous la date, alors que la colonne
-   de droite, elle, est centrée. Les deux marges automatiques répartissent
-   l'espace au-dessus et en dessous à parts égales. */
-.titre { margin:auto 0; }
 .kick { font-size:28px; letter-spacing:13px; text-indent:13px; color:#00D936; }
 .springs { margin-top:16px; font-size:44px; letter-spacing:23px; text-indent:23px; color:#8f8fa6; line-height:1; }
-.name { margin-top:2px; font-size:150px; line-height:.9; letter-spacing:1px;
+.name { font-size:150px; line-height:.9; letter-spacing:1px;
   filter:drop-shadow(0 5px 0 rgba(0,0,0,.55)) drop-shadow(0 16px 34px rgba(0,0,0,.85)); }
-.rule { margin-top:26px; width:520px; height:5px;
+.rule { margin-top:18px; width:520px; height:5px;
   background:linear-gradient(90deg, #00D936 0%, #00D936 72%, rgba(0,217,54,0) 100%); }
 .when { margin-top:26px; display:flex; align-items:center; gap:22px; }
 .when .d { font-size:46px; letter-spacing:2px; white-space:nowrap; text-shadow:0 3px 12px rgba(0,0,0,.95); }
 .when .dot { width:9px; height:9px; background:#00D936; transform:rotate(45deg); }
 .when .p { font-size:27px; letter-spacing:9px; text-indent:9px; color:#a364d9; white-space:nowrap; }
+
 
 .sponsors .sl { font-size:19px; letter-spacing:6px; color:#6f6b86; text-shadow:0 3px 12px rgba(0,0,0,.9); }
 .sponsors .row { margin-top:14px; display:flex; align-items:center; gap:20px; }
@@ -298,18 +330,21 @@ GRAND = u"""
 .sponsors .plain { height:78px; display:flex; align-items:center; padding:0 8px; }
 .sponsors .plain img { max-height:60px; max-width:200px; object-fit:contain; display:block; }
 
-.lab { align-self:flex-start; font-size:26px; letter-spacing:8px; text-indent:8px; color:#07050b;
+/* `width:fit-content` là où une cellule de grille étirerait le bloc sur toute
+   la colonne : l'étiquette verte et le bandeau de dotation doivent s'arrêter à
+   leur texte. En disposition flexible, `align-self` suffisait. */
+.lab { width:fit-content; font-size:26px; letter-spacing:8px; text-indent:8px; color:#07050b;
   background:linear-gradient(180deg,#25f04f,#00b62c); padding:9px 24px 7px; }
 .slogan { margin-top:20px; font-size:88px; line-height:1.0; text-shadow:0 4px 18px rgba(0,0,0,.95); }
 .slogan b { color:#00D936; }
-.prize { margin-top:40px; align-self:flex-start; display:flex; align-items:center; gap:26px;
+.prize { width:fit-content; display:flex; align-items:center; gap:26px;
   transform:skewX(-5deg); border-left:9px solid #00D936;
   background:linear-gradient(90deg, rgba(0,217,54,.18) 0%, rgba(123,47,190,.34) 58%, rgba(123,47,190,.10) 100%);
   padding:16px 34px; box-shadow:0 12px 30px rgba(0,0,0,.65); }
 .prize > * { transform:skewX(5deg); }
 .prize .amt { font-size:112px; line-height:.85; color:#00D936; filter:drop-shadow(0 3px 0 rgba(0,0,0,.45)); }
 .prize .lb { text-align:left; font-size:29px; letter-spacing:6px; color:#e6e2f0; line-height:1.25; }
-.stats { margin-top:38px; display:flex; text-align:center;
+.stats { margin-top:26px; display:flex; text-align:center;
   border-top:3px solid rgba(255,255,255,.16); border-bottom:3px solid rgba(255,255,255,.16);
   background:linear-gradient(180deg, rgba(7,5,11,.60) 0%, rgba(7,5,11,.42) 100%); }
 .stats > div { flex:1; padding:18px 0 15px; }
@@ -318,7 +353,7 @@ GRAND = u"""
 .stats .k { margin-top:-4px; font-size:17px; letter-spacing:2.6px; color:#8d89a8; }
 .pract { margin-top:26px; font-size:30px; letter-spacing:3px; color:#cfcbdd; text-shadow:0 3px 14px rgba(0,0,0,.95); }
 .pract b { color:#fff; } .pract em { font-style:normal; color:#8d89a8; }
-.cta { margin-top:38px; border-top:3px solid rgba(255,255,255,.14); padding-top:22px; }
+.cta { margin-top:34px; border-top:3px solid rgba(255,255,255,.14); padding-top:22px; }
 .cta .l { font-size:22px; letter-spacing:6px; color:#8d89a8; }
 .cta .u { margin-top:4px; font-size:62px; letter-spacing:1px; text-shadow:0 4px 16px rgba(0,0,0,.95); }
 .cta .u b { color:#00D936; }
@@ -330,14 +365,24 @@ GRAND_BODY = u"""
   <div class="glow"></div><div class="glow2"></div>
   <div class="checker top"></div><div class="checker bot"></div>
   <div class="inner">
-    <div class="col-g">
+    <!-- Rangée 1 -->
+    <div>
       <img class="logo" src="data:image/png;base64,__LOGO__" alt="Springs E-Sport">
       <div class="presente">__T_PRESENTE__</div>
+    </div>
+    <div>
+      <div class="lab">__T_ACCROCHE__</div>
+      <div class="slogan">__T_SLOGAN__</div>
+    </div>
 
-      <div class="titre">
+    <!-- Rangée 2 : les deux blocs à aligner, centrés dans la rangée -->
+    <div class="r2 titre">
+      <div class="haut">
         <div class="kick">__T_KICK__</div>
         <div class="springs">SPRINGS</div>
-        <div class="name">MANIA CUP</div>
+      </div>
+      <div class="name">MANIA CUP</div>
+      <div class="bas">
         <div class="rule"></div>
         <div class="when">
           <div class="d">__T_DATES__</div>
@@ -345,23 +390,23 @@ GRAND_BODY = u"""
           <div class="p">__T_LIEU__</div>
         </div>
       </div>
-
-      <div class="sponsors">
-        <div class="sl">__T_SOUTIEN__</div>
-        <div class="row">
-          <div class="plain"><img src="data:image/png;base64,__SP404__" alt="PAGE 404"></div>
-          <div class="card"><img src="data:image/png;base64,__SPIBIS__" alt="ibis budget"></div>
-        </div>
-      </div>
     </div>
-
-    <div class="col-d">
-      <div class="lab">__T_ACCROCHE__</div>
-      <div class="slogan">__T_SLOGAN__</div>
+    <div class="r2">
       <div class="prize">
         <div class="amt">__T_MONTANT__</div>
         <div class="lb">__T_CASHPRIZE__</div>
       </div>
+    </div>
+
+    <!-- Rangée 3 : les deux pieds de colonne, posés au même niveau -->
+    <div class="r3 sponsors">
+      <div class="sl">__T_SOUTIEN__</div>
+      <div class="row">
+        <div class="plain"><img src="data:image/png;base64,__SP404__" alt="PAGE 404"></div>
+        <div class="card"><img src="data:image/png;base64,__SPIBIS__" alt="ibis budget"></div>
+      </div>
+    </div>
+    <div class="r3">
       <div class="stats">
         <div><div class="v">2</div><div class="k">__T_K_JOURS__</div></div>
         <div><div class="v">64</div><div class="k">__T_K_JOUEURS__</div></div>
