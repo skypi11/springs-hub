@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
@@ -9,6 +9,7 @@ import { countries } from '@/lib/countries';
 import { deleteFileSilent } from '@/lib/storage';
 import { clampString } from '@/lib/validation';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
+import { decideTraceReglement } from '@/lib/mania-cup-rulebook-trace';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { MANIA_CUP_PAYMENTS } from '@/lib/helloasso/apply';
 import { allocateRegistrationCode, releaseRegistrationCode } from '@/lib/mania-cup-server';
@@ -381,12 +382,25 @@ export async function POST(req: NextRequest) {
     // Trace opposable de l'acceptation du règlement : la version, la date et
     // l'auteur. Le modèle l'annonçait, mais rien ne l'écrivait — un litige sur
     // « je n'ai jamais accepté ça » n'aurait rien eu à opposer.
-    if (rulebook && !prev?.rulebookAccepted) {
-      payload.rulebookAccepted = {
-        version: rulebook.version,
-        at: FieldValue.serverTimestamp(),
-        byUid: uid,
-      };
+    //
+    // La décision est prise par une fonction pure et testée : la règle
+    // précédente n'écrivait qu'en l'absence de trace, si bien qu'un joueur
+    // revenu après une republication restait enregistré sur l'ancienne version.
+    const traceReglement = decideTraceReglement({
+      versionAcceptee: rulebook?.version ?? null,
+      tracePrecedente: prev?.rulebookAccepted ?? null,
+      uid,
+    });
+    if (traceReglement) {
+      const at = Timestamp.now();
+      payload.rulebookAccepted = { ...traceReglement.trace, at: FieldValue.serverTimestamp() };
+      // L'historique garde chaque acceptation. `arrayUnion` n'accepte pas
+      // d'horodatage différé : on fige l'instant côté serveur, qui vaut à la
+      // seconde près pour ce que la trace doit prouver.
+      payload.rulebookAcceptedHistory = FieldValue.arrayUnion({
+        ...traceReglement.trace,
+        at,
+      }) as unknown as ManiaCupRegistration['rulebookAcceptedHistory'];
     }
 
     await docRef.set(payload, { merge: true });

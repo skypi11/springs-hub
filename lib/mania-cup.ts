@@ -267,8 +267,16 @@ export interface ManiaCupRegistration {
   guardianRejectionReason?: string | null;
   /** Date de purge des pièces, une fois l'événement passé. */
   guardianDocsPurgedAt?: unknown;
-  /** Version du règlement acceptée à l'inscription — trace opposable. */
+  /** Version du règlement qui engage le joueur AUJOURD'HUI — trace opposable. */
   rulebookAccepted?: { version: number; at: unknown; byUid: string } | null;
+  /**
+   * Chaque acceptation, dans l'ordre. Répond à une autre question que le champ
+   * ci-dessus : celui-là dit quel texte engage le joueur maintenant, celui-ci
+   * dit ce qu'il a accepté et quand. Un joueur inscrit sous la version 1 puis
+   * revenu après une republication a bien accepté les deux ; n'en garder qu'une
+   * effacerait la première.
+   */
+  rulebookAcceptedHistory?: Array<{ version: number; at: unknown; byUid: string }>;
   /**
    * Les accompagnants du joueur — trois au maximum.
    *
