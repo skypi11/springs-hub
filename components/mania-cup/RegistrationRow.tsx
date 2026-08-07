@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   Check, X, Euro, ShieldCheck, FileText, ChevronDown, Monitor, MapPin,
-  MessageSquare, UserCheck, Ban, Loader2,
+  MessageSquare, UserCheck, Ban, Loader2, Copy,
 } from 'lucide-react';
 import CountryFlag from '@/components/ui/CountryFlag';
 import CountrySelect from '@/components/ui/CountrySelect';
@@ -43,7 +43,14 @@ export type Row = {
   guardianRejectionReason: string | null;
   registrationCode: string;
   companions: { name: string; role: string; ticketItemId?: number | null }[];
-  payment: { amountCents: number; payerName: string } | null;
+  payment: {
+    amountCents: number;
+    payerName: string;
+    /** Numéro de commande HelloAsso — celui qu'on saisit dans leur recherche
+     *  pour retrouver un règlement ou lancer un remboursement. */
+    orderId?: number | null;
+    itemId?: number | null;
+  } | null;
   pcRental: { amountCents: number } | null;
   seat: string | null;
   checkedIn: boolean;
@@ -456,6 +463,17 @@ function Dossier({
                   {r.payment.payerName || 'payeur inconnu'}
                 </div>
               )}
+              {/* LE numéro à saisir chez HelloAsso pour retrouver ce règlement
+                  ou le rembourser. Il était en base depuis le début, mais
+                  n'apparaissait nulle part : retrouver la bonne commande
+                  demandait de fouiller la base à la main.
+
+                  Et il faut la BONNE : un joueur qui a payé deux fois a deux
+                  commandes, dont une seule tient sa place. Rembourser l'autre
+                  la lui retirerait à la prochaine relecture. */}
+              {r.payment?.orderId != null && (
+                <NumeroCommande orderId={r.payment.orderId} />
+              )}
               <button
                 onClick={() => onAct({ uid: r.uid, action: 'mark_unpaid' })}
                 disabled={pending}
@@ -776,6 +794,40 @@ function Guardian({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/** Le numéro de commande HelloAsso, copiable d'un clic.
+ *
+ *  Copiable parce que l'usage est toujours le même : le coller dans la
+ *  recherche de HelloAsso. Le relire à l'écran pour le retaper, à neuf
+ *  chiffres, c'est une erreur de saisie qui attend. */
+function NumeroCommande({ orderId }: { orderId: number }) {
+  const [copie, setCopie] = useState(false);
+
+  return (
+    <div className="mt-1.5 flex items-center gap-2">
+      <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+        Commande HelloAsso
+      </span>
+      <button
+        onClick={() => {
+          void navigator.clipboard?.writeText(String(orderId));
+          setCopie(true);
+          window.setTimeout(() => setCopie(false), 1500);
+        }}
+        title="Copier le numéro de commande"
+        className="inline-flex items-center gap-1.5 border border-white/15 px-2 py-0.5 font-mono text-xs transition-colors hover:bg-white/10"
+      >
+        {orderId}
+        {copie ? (
+          <Check size={11} style={{ color: 'var(--s-green)' }} aria-hidden />
+        ) : (
+          <Copy size={11} style={{ color: 'var(--s-text-muted)' }} aria-hidden />
+        )}
+      </button>
     </div>
   );
 }
