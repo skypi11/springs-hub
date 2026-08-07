@@ -64,3 +64,6 @@ tsc-output.txt
 
 # Sorties locales de scripts/render-poster.mjs (affiches PNG à juger)
 tmp/
+
+# Gabarits ManiaPub (1 Mo chacun, assets en base64) — regénérés par build_maniapub.py
+scripts/affiche-mania-cup/maniapub-*.html
