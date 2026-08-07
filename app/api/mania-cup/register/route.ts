@@ -213,6 +213,9 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
       return NextResponse.json({ error: 'Date de naissance invalide.' }, { status: 400 });
     }
+    if (!countryCode) {
+      return NextResponse.json({ error: 'Choisis ton pays.' }, { status: 400 });
+    }
     if (!countries.some((c) => c.code === countryCode)) {
       return NextResponse.json({ error: 'Pays invalide.' }, { status: 400 });
     }

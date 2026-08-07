@@ -42,11 +42,28 @@ export async function GET(req: NextRequest) {
       .orderBy('createdAt', 'asc')
       .get();
 
+    // Le drapeau vient du PROFIL, pas de l'inscription.
+    //
+    // L'inscription copie le pays au moment où elle est déposée. Un joueur qui
+    // corrige son pays ensuite — ou l'organisation qui le corrige pour lui —
+    // ne voyait rien changer ici : c'est arrivé le 7 août à un joueur suisse
+    // affiché avec le drapeau français, et la console n'offrait aucun moyen de
+    // le réparer. Une seule source, celle que le joueur entretient.
+    //
+    // La copie de l'inscription reste en repli : elle sert aux dossiers dont le
+    // profil n'a pas de pays, et à l'accueil le jour J.
+    const profils = snap.docs.length
+      ? await db.getAll(...snap.docs.map((d) => db.collection('users').doc(d.id)))
+      : [];
+    const paysParUid = new Map(
+      profils.map((p) => [p.id, (p.data()?.country as string) || ''])
+    );
+
     const participants: PublicRegistration[] = snap.docs.map((d) => {
       const r = d.data() as ManiaCupRegistration;
       return {
         tmDisplayName: r.tmDisplayName || '—',
-        countryCode: r.countryCode || 'OTHER',
+        countryCode: paysParUid.get(d.id) || r.countryCode || 'OTHER',
         status: r.status,
       };
     });

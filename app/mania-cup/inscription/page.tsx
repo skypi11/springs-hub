@@ -83,7 +83,13 @@ export default function InscriptionPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [birthDate, setBirthDate] = useState('');
-  const [countryCode, setCountryCode] = useState('FR');
+  // Vide, et non 'FR'. Le champ était pré-rempli « France » sans que personne
+  // ne l'ait choisi : un joueur suisse a validé sans y toucher, et comme
+  // backfillProfile recopie ce pays sur un profil qui n'en a pas, le défaut du
+  // formulaire a écrit « France » sur son profil. Il s'est retrouvé avec le
+  // drapeau français sur la liste publique. Maintenant qu'on vise l'Europe,
+  // un défaut national est un piège.
+  const [countryCode, setCountryCode] = useState('');
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -102,7 +108,7 @@ export default function InscriptionPage() {
       const reg = data.registration;
       if (reg) {
         setBirthDate(reg.birthDate ?? '');
-        setCountryCode(reg.countryCode ?? 'FR');
+        setCountryCode(reg.countryCode ?? '');
         setFirstName(reg.firstName ?? '');
         setLastName(reg.lastName ?? '');
         setEmail(reg.email ?? '');

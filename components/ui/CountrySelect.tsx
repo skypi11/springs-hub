@@ -26,7 +26,10 @@ export default function CountrySelect({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const selected = countries.find((c) => c.code === value) ?? countries[0];
+  // Volontairement null quand rien n'est choisi, au lieu de retomber sur le
+  // premier pays de la liste. Ce repli affichait « France » à quelqu'un qui
+  // n'avait rien sélectionné — il croyait son pays renseigné, et validait.
+  const selected = countries.find((c) => c.code === value) ?? null;
 
   // Fermeture au clic extérieur et à Échap
   useEffect(() => {
@@ -57,8 +60,14 @@ export default function CountrySelect({
         className="flex w-full items-center justify-between gap-3 border border-white/15 bg-black/40 px-4 py-3 text-left text-white outline-none focus:border-[#00D936] disabled:opacity-50"
       >
         <span className="flex items-center gap-3">
-          <CountryFlag code={selected.code} size={24} />
-          {selected.name}
+          {selected ? (
+            <>
+              <CountryFlag code={selected.code} size={24} />
+              {selected.name}
+            </>
+          ) : (
+            <span className="text-[#8d89a8]">Choisis ton pays</span>
+          )}
         </span>
         <ChevronDown
           size={18}

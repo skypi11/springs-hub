@@ -39,6 +39,16 @@ export async function GET(req: NextRequest) {
       getManiaCupSettings(db),
     ]);
 
+    // Même règle que la liste publique : le drapeau vient du profil, que le
+    // joueur et l'organisation peuvent corriger, et non de la copie figée au
+    // dépôt du dossier. La console doit montrer ce que montre le site.
+    const profils = snap.docs.length
+      ? await db.getAll(...snap.docs.map((d) => db.collection('users').doc(d.id)))
+      : [];
+    const paysParUid = new Map(
+      profils.map((p) => [p.id, (p.data()?.country as string) || ''])
+    );
+
     const registrations = snap.docs.map((d) => {
       const r = d.data() as ManiaCupRegistration;
       return {
@@ -54,7 +64,7 @@ export async function GET(req: NextRequest) {
         phone: r.phone ?? null,
         emergencyContact: r.emergencyContact ?? null,
         imageConsent: r.imageConsent?.accepted ?? null,
-        countryCode: r.countryCode,
+        countryCode: paysParUid.get(d.id) || r.countryCode,
         ageAtEvent: r.ageAtEvent,
         status: r.status,
         guardianConsent: r.guardianConsent,
