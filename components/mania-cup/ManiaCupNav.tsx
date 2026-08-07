@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Ticket, CircleUser, Globe } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { apiPublic } from '@/lib/api-client';
 import { MANIA_CUP } from '@/lib/mania-cup';
 
@@ -34,11 +35,24 @@ type Ctx = { registration?: { registrationCode?: string } | null };
 export default function ManiaCupNav() {
   const pathname = usePathname();
 
-  // Partage la même clé que la page d'inscription : React Query déduplique,
-  // la barre ne déclenche pas d'appel supplémentaire.
+  // ATTENDRE que l'authentification soit résolue avant d'interroger l'API.
+  //
+  // Sans ce garde-fou, la barre partait en course avec Firebase : si le jeton
+  // n'était pas encore prêt, la route répondait « non authentifié », donc
+  // « aucune inscription », et le bouton affichait « S'inscrire » à quelqu'un
+  // qui l'était déjà. Aléatoire par nature — ça dépendait de qui gagnait la
+  // course — donc invisible la moitié du temps.
+  //
+  // L'uid entre dans la clé : deux comptes sur le même navigateur ne doivent
+  // pas se partager une réponse en cache. (Un commentaire affirmait ici que la
+  // page d'inscription partageait cette requête via React Query — elle ne
+  // l'utilise pas : elle appelle l'API à la main dans un effet.)
+  const { firebaseUser, loading: authLoading } = useAuth();
+
   const { data } = useQuery({
-    queryKey: ['mania-cup', 'register'] as const,
+    queryKey: ['mania-cup', 'register', firebaseUser?.uid ?? 'anon'] as const,
     queryFn: () => apiPublic<Ctx>('/api/mania-cup/register'),
+    enabled: !authLoading,
     staleTime: 30_000,
   });
 

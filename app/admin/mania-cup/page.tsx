@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, FileText, Check, X, Euro, AlertTriangle, ShieldCheck, ScrollText, Save,
-  Search, Download, IdCard,
+  Search, Download, IdCard, ExternalLink, Monitor,
 } from 'lucide-react';
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import { countries } from '@/lib/countries';
@@ -147,7 +147,10 @@ export default function AdminManiaCupPage() {
   const toReview = helloasso?.counts?.toReview ?? 0;
 
   const act = useMutation({
-    mutationFn: (body: { uid: string; action: string; reason?: string; countryCode?: string }) =>
+    mutationFn: (body: {
+      uid: string; action: string; reason?: string;
+      countryCode?: string; pcRental?: boolean;
+    }) =>
       api('/api/admin/mania-cup', { method: 'PATCH', body }),
     onSuccess: () => {
       setError(null);
@@ -244,10 +247,25 @@ export default function AdminManiaCupPage() {
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="font-display text-4xl">Springs Mania Cup</h1>
-      <p className="mt-2" style={{ color: 'var(--s-text-dim)' }}>
-        3 &amp; 4 octobre 2026 · {MANIA_CUP.city} · {MANIA_CUP.maxPlayers} places
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-4xl">Springs Mania Cup</h1>
+          <p className="mt-2" style={{ color: 'var(--s-text-dim)' }}>
+            3 &amp; 4 octobre 2026 · {MANIA_CUP.city} · {MANIA_CUP.maxPlayers} places
+          </p>
+        </div>
+        {/* Aller voir ce que voient les joueurs sans repasser par l'onglet
+            Compétitions : c'est le va-et-vient le plus fréquent quand on
+            prépare l'événement. */}
+        <Link
+          href="/mania-cup"
+          target="_blank"
+          className="btn-springs btn-secondary bevel-sm inline-flex shrink-0 items-center gap-2"
+        >
+          <ExternalLink size={16} aria-hidden />
+          Voir la page publique
+        </Link>
+      </div>
 
       {c && (
         <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -448,7 +466,23 @@ export default function AdminManiaCupPage() {
                           image refusée
                         </span>
                       )}
-                      {r.pcRental && <span className="tag tag-violet">poste loué</span>}
+                      {/* Cliquable : les postes à louer sont en nombre très
+                          limité, et la boutique HelloAsso qui les vendra
+                          n'existe pas encore. Une location convenue sur le
+                          Discord doit pouvoir être notée ici. */}
+                      <button
+                        onClick={() =>
+                          act.mutate({ uid: r.uid, action: 'set_pc_rental', pcRental: !r.pcRental })
+                        }
+                        title={r.pcRental ? 'Retirer la location de poste' : 'Noter une location de poste'}
+                        className={`tag inline-flex items-center gap-1 transition-opacity hover:opacity-70 ${
+                          r.pcRental ? 'tag-violet' : 'tag-neutral'
+                        }`}
+                        style={r.pcRental ? undefined : { opacity: 0.45 }}
+                      >
+                        <Monitor size={11} aria-hidden />
+                        {r.pcRental ? 'poste loué' : 'poste'}
+                      </button>
                       {r.checkedIn && <span className="tag tag-green">arrivé</span>}
                     </div>
                   </td>
@@ -457,13 +491,17 @@ export default function AdminManiaCupPage() {
                         l'organisation n'avait aucun moyen de le corriger — un
                         joueur suisse est resté sous drapeau français jusqu'à ce
                         qu'on écrive en base. */}
+                    {/* Le champ se fait oublier tant qu'on ne le survole pas :
+                        c'est une donnée qu'on lit cent fois et qu'on corrige
+                        une fois. Un menu déroulant encadré sur chaque ligne
+                        attirait l'œil plus que le nom du joueur. */}
                     <select
                       value={r.countryCode}
                       onChange={(e) =>
                         act.mutate({ uid: r.uid, action: 'set_country', countryCode: e.target.value })
                       }
                       aria-label={`Pays de ${r.tmDisplayName || r.uid}`}
-                      className="settings-input w-full max-w-[11rem] text-sm"
+                      className="mc-pays cursor-pointer border border-transparent bg-transparent py-1 pr-6 pl-1 text-sm outline-none hover:border-white/15 focus:border-[#00D936]"
                     >
                       {countries.map((c) => (
                         <option key={c.code} value={c.code}>
@@ -564,6 +602,16 @@ export default function AdminManiaCupPage() {
           </table>
         </div>
       ))}
+
+      {/* Le menu déroulant natif garde le fond blanc du système sur sa liste
+          déroulée ; on ne peut pas le styler, mais on peut au moins rendre ses
+          options lisibles sur le thème sombre. */}
+      <style jsx global>{`
+        .mc-pays option {
+          background: #111015;
+          color: #eaeaf0;
+        }
+      `}</style>
     </div>
   );
 }

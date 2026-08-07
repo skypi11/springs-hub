@@ -138,6 +138,7 @@ export async function PATCH(req: NextRequest) {
       seat?: unknown;
       message?: unknown;
       countryCode?: unknown;
+      pcRental?: unknown;
     } | null;
 
     const target = typeof body?.uid === 'string' ? body.uid : '';
@@ -314,6 +315,40 @@ export async function PATCH(req: NextRequest) {
         metadata: { countryCode: code },
       });
       return NextResponse.json({ ok: true, countryCode: code });
+    }
+
+    /** Marquer une location de poste à la main.
+     *
+     *  `pcRental` ne pouvait venir que de la boutique HelloAsso, qui n'existe
+     *  pas encore — l'organisation n'avait donc aucun moyen d'enregistrer une
+     *  location convenue de vive voix ou sur le Discord, alors que le nombre de
+     *  postes disponibles est très limité et qu'il faut savoir qui en occupe un.
+     *
+     *  Quand la boutique existera, elle écrira le même champ avec son montant
+     *  réel : ce chemin restera le rattrapage. */
+    if (action === 'set_pc_rental') {
+      const rented = body?.pcRental === true;
+      await docRef.update({
+        pcRental: rented
+          ? {
+              // Aucun montant : rien n'a été encaissé par ce chemin. Inscrire un
+              // prix ici ferait croire à un règlement reçu.
+              amountCents: 0,
+              source: 'manual',
+              at: FieldValue.serverTimestamp(),
+            }
+          : null,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_pc_rental_set',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: target,
+        targetLabel: reg.tmDisplayName ?? target,
+        metadata: { rented },
+      });
+      return NextResponse.json({ ok: true, rented });
     }
 
     return NextResponse.json({ error: 'Action inconnue' }, { status: 400 });

@@ -113,6 +113,7 @@ export type AdminAuditAction =
   | 'mania_cup_marked_unpaid'
   | 'mania_cup_registration_cancelled'
   | 'mania_cup_country_set'
+  | 'mania_cup_pc_rental_set'
   | 'mania_cup_checked_in'
   | 'mania_cup_payments_reconciled'
   | 'mania_cup_payment_matched';
