@@ -300,13 +300,23 @@ GRAND = u"""
 .r2 { align-self:center; }
 .r3 { align-self:end; }
 
-/* Les DEUX réserves sont des boîtes flexibles, et pas seulement celle du haut.
-   En bloc ordinaire, la marge haute du trait vert s'échappait de la réserve du
-   bas au lieu de rester dedans (fusion des marges) : le bloc gagnait 18 px sous
-   le nom, et le nom se retrouvait 9 px trop haut. Une boîte flexible ne fusionne
-   pas les marges de ses enfants. Le contrôle de rendu a chiffré l'écart. */
+/* Les réserves sont des boîtes flexibles, et pas de simples blocs. En bloc
+   ordinaire, la marge haute du trait vert s'échappait de la réserve du bas au
+   lieu de rester dedans (fusion des marges) : le bloc gagnait 18 px sous le
+   nom, et le nom se retrouvait 9 px trop haut. Une boîte flexible ne fusionne
+   pas les marges de ses enfants. Le contrôle de rendu a chiffré l'écart.
+
+   La colonne de droite emploie le MÊME procédé autour de la dotation, pour une
+   raison d'apparence : la rangée du milieu prend la hauteur du plus grand des
+   deux blocs, et un montant seul, centré dans une rangée haute, se retrouvait
+   avec 218 px de vide au-dessus et 244 en dessous. Le slogan est donc calé
+   contre lui par le bas, les chiffres et l'adresse contre lui par le haut, et
+   tout l'espace libre part aux extrémités de la colonne — là où il ne se lit
+   plus comme un trou, mais comme de la respiration. */
 .titre .haut { min-height:150px; display:flex; flex-direction:column; justify-content:flex-end; }
 .titre .bas  { min-height:150px; display:flex; flex-direction:column; }
+.dotation .haut { min-height:390px; padding-bottom:24px; display:flex; flex-direction:column; justify-content:flex-end; }
+.dotation .bas  { min-height:390px; padding-top:24px; display:flex; flex-direction:column; }
 
 .logo { width:290px; filter:drop-shadow(0 4px 14px rgba(0,0,0,.8)); }
 .presente { margin-top:8px; font-size:20px; letter-spacing:10px; text-indent:10px; color:#9d98b3; }
@@ -344,7 +354,7 @@ GRAND = u"""
 .prize > * { transform:skewX(5deg); }
 .prize .amt { font-size:112px; line-height:.85; color:#00D936; filter:drop-shadow(0 3px 0 rgba(0,0,0,.45)); }
 .prize .lb { text-align:left; font-size:29px; letter-spacing:6px; color:#e6e2f0; line-height:1.25; }
-.stats { margin-top:26px; display:flex; text-align:center;
+.stats { display:flex; text-align:center;
   border-top:3px solid rgba(255,255,255,.16); border-bottom:3px solid rgba(255,255,255,.16);
   background:linear-gradient(180deg, rgba(7,5,11,.60) 0%, rgba(7,5,11,.42) 100%); }
 .stats > div { flex:1; padding:18px 0 15px; }
@@ -370,10 +380,7 @@ GRAND_BODY = u"""
       <img class="logo" src="data:image/png;base64,__LOGO__" alt="Springs E-Sport">
       <div class="presente">__T_PRESENTE__</div>
     </div>
-    <div>
-      <div class="lab">__T_ACCROCHE__</div>
-      <div class="slogan">__T_SLOGAN__</div>
-    </div>
+    <div></div>
 
     <!-- Rangée 2 : les deux blocs à aligner, centrés dans la rangée -->
     <div class="r2 titre">
@@ -391,14 +398,31 @@ GRAND_BODY = u"""
         </div>
       </div>
     </div>
-    <div class="r2">
+    <div class="r2 dotation">
+      <div class="haut">
+        <div class="lab">__T_ACCROCHE__</div>
+        <div class="slogan">__T_SLOGAN__</div>
+      </div>
       <div class="prize">
         <div class="amt">__T_MONTANT__</div>
         <div class="lb">__T_CASHPRIZE__</div>
       </div>
+      <div class="bas">
+        <div class="stats">
+          <div><div class="v">2</div><div class="k">__T_K_JOURS__</div></div>
+          <div><div class="v">64</div><div class="k">__T_K_JOUEURS__</div></div>
+          <div><div class="v">__T_V_MAPS__</div><div class="k">__T_K_MAPS__</div></div>
+          <div><div class="v">8</div><div class="k">__T_K_EPREUVES__</div></div>
+        </div>
+        <div class="pract">__T_PRIX__</div>
+        <div class="cta">
+          <div class="l">__T_INSCRIPTION__</div>
+          <div class="u">aedral.com<b>/</b>mania-cup</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Rangée 3 : les deux pieds de colonne, posés au même niveau -->
+    <!-- Rangée 3 -->
     <div class="r3 sponsors">
       <div class="sl">__T_SOUTIEN__</div>
       <div class="row">
@@ -406,19 +430,7 @@ GRAND_BODY = u"""
         <div class="card"><img src="data:image/png;base64,__SPIBIS__" alt="ibis budget"></div>
       </div>
     </div>
-    <div class="r3">
-      <div class="stats">
-        <div><div class="v">2</div><div class="k">__T_K_JOURS__</div></div>
-        <div><div class="v">64</div><div class="k">__T_K_JOUEURS__</div></div>
-        <div><div class="v">__T_V_MAPS__</div><div class="k">__T_K_MAPS__</div></div>
-        <div><div class="v">8</div><div class="k">__T_K_EPREUVES__</div></div>
-      </div>
-      <div class="pract">__T_PRIX__</div>
-      <div class="cta">
-        <div class="l">__T_INSCRIPTION__</div>
-        <div class="u">aedral.com<b>/</b>mania-cup</div>
-      </div>
-    </div>
+    <div></div>
   </div>
 </div>
 """
