@@ -190,11 +190,194 @@ export async function PATCH(req: NextRequest) {
 
     const target = typeof body?.uid === 'string' ? body.uid : '';
     const action = typeof body?.action === 'string' ? body.action : '';
+    const db = getAdminDb();
+
+    // ── Actions qui NE VISENT PAS une inscription ────────────────────────────
+    //
+    // Elles se traitent AVANT la garde ci-dessous, qui exige un `uid` et
+    // charge le dossier correspondant. Greffées après, elles étaient MORTES :
+    // « Rôles Discord » ne vise personne en particulier et repartait en
+    // « Requête invalide », et les actions de liste d'attente visent une
+    // entrée de FILE, pas une inscription — elles auraient toutes répondu
+    // « Inscription introuvable », l'invitation comprise.
+
+    /** Donner le rôle à tous ceux qui ont réglé et ne l'ont pas encore.
+     *
+     *  Indispensable et pas seulement pour rattraper : un joueur peut très bien
+     *  régler son inscription AVANT de rejoindre le serveur Discord. Discord
+     *  n'a aucun moyen de nous prévenir quand il arrive ; c'est donc ce bouton
+     *  qui referme l'écart, autant de fois qu'il le faut. */
+    if (action === 'sync_discord_roles') {
+      const snap = await db
+        .collection(MANIA_CUP_REGISTRATIONS)
+        .where('status', '==', 'confirmed')
+        .get();
+
+      const absents: string[] = [];
+      let donnes = 0;
+      let raisonBloquante: string | null = null;
+
+      for (const doc of snap.docs) {
+        const r = doc.data() as { tmDisplayName?: string };
+        const res = await donnerRoleInscrit(db, doc.id);
+        if (res.ok) { donnes++; continue; }
+        if (res.raison === 'pas_membre') {
+          absents.push(r.tmDisplayName || doc.id);
+          continue;
+        }
+        // Rôle non configuré ou introuvable : inutile de marteler l'API
+        // Discord soixante-quatre fois pour la même cause.
+        raisonBloquante = res.raison;
+        break;
+      }
+
+      if (raisonBloquante === 'role_non_configure') {
+        return NextResponse.json(
+          { error: 'Aucun rôle n’est configuré — renseigne-le dans l’onglet Configuration.' },
+          { status: 400 }
+        );
+      }
+      if (raisonBloquante === 'role_introuvable') {
+        return NextResponse.json(
+          { error: 'Le rôle configuré n’existe plus sur le serveur Discord.' },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json({
+        ok: true,
+        donnes,
+        // Nommés, pas comptés : l'organisation doit pouvoir leur dire de
+        // rejoindre le serveur.
+        absentsDuServeur: absents,
+      });
+    }
+
+    // ── Liste d'attente ──────────────────────────────────────────────────────
+
+    /** Inviter quelqu'un à prendre la place qui vient de se libérer.
+     *
+     *  L'action REFUSE tant qu'aucune place n'est disponible — places réglées
+     *  et places déjà réservées par une autre invitation comprises. C'est ce
+     *  refus qui empêche d'inviter deux personnes sur une seule place, et donc
+     *  de devoir en rembourser une. */
+    if (action === 'waitlist_invite') {
+      const [{ entrees }, reglees, settings] = await Promise.all([
+        lireFileAttente(db),
+        compterPlacesReglees(db),
+        getManiaCupSettings(db),
+      ]);
+      const maintenant = Date.now();
+      const suivant = prochainAInviter({
+        entrees,
+        placesReglees: reglees,
+        placesTotales: settings.maxPlayers,
+        maintenant,
+      });
+      if (!suivant) {
+        return NextResponse.json(
+          {
+            error:
+              'Aucune place à offrir pour l’instant — soit tout est réglé, soit une invitation en cours tient déjà la dernière place.',
+          },
+          { status: 409 }
+        );
+      }
+      // La cible est imposée par la file, jamais choisie dans la requête :
+      // l'ordre d'arrivée est la seule règle annoncée aux joueurs.
+      if (typeof body?.uid === 'string' && body.uid !== suivant.uid) {
+        return NextResponse.json(
+          { error: 'C’est au tour de quelqu’un d’autre dans la file.' },
+          { status: 409 }
+        );
+      }
+
+      // Aucune échéance : la place reste réservée jusqu'à ce que
+      // l'organisation passe au suivant. Une horloge obligerait à annoncer un
+      // délai dans le règlement, donc à s'y tenir même quand la personne
+      // répond une heure trop tard avec une bonne raison.
+      await db.collection(MANIA_CUP_WAITLIST).doc(suivant.uid).set(
+        {
+          status: 'invited',
+          invitedAt: FieldValue.serverTimestamp(),
+          invitedBy: uid,
+          invitationExpiresAt: null,
+        },
+        { merge: true }
+      );
+      await createNotification(db, {
+        userId: suivant.uid,
+        type: 'mania_cup_waitlist_invited',
+        title: 'Une place s’est libérée à la Springs Mania Cup',
+        message:
+          'Elle t’est réservée. Règle ton inscription sans tarder : sans nouvelle de ta part, l’organisation la proposera à la personne suivante.',
+        link: '/mania-cup/inscription',
+      });
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_invited',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: suivant.uid,
+        targetLabel: suivant.uid,
+      });
+      return NextResponse.json({ ok: true, invite: suivant.uid });
+    }
+
+    /** Passer au suivant : la personne invitée n'a pas donné suite.
+     *
+     *  C'est la seule façon de libérer une place réservée. Ce n'est pas une
+     *  sanction — elle peut se remettre dans la file — mais elle repart alors
+     *  de la fin, comme tout le monde : reprendre son rang la ferait passer
+     *  devant des gens qui, eux, ont attendu sans se faire proposer de place. */
+    if (action === 'waitlist_pass') {
+      const cible = typeof body?.uid === 'string' ? body.uid : '';
+      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
+
+      const ref = db.collection(MANIA_CUP_WAITLIST).doc(cible);
+      const doc = await ref.get();
+      if ((doc.data()?.status as string) !== 'invited') {
+        return NextResponse.json(
+          { error: 'Cette personne n’a pas d’invitation en cours.' },
+          { status: 409 }
+        );
+      }
+      await ref.set(
+        { status: 'left', passedAt: FieldValue.serverTimestamp(), passedBy: uid },
+        { merge: true }
+      );
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_passed',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: cible,
+        targetLabel: cible,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    /** Retirer quelqu'un de la file — désistement annoncé de vive voix, doublon. */
+    if (action === 'waitlist_remove') {
+      const cible = typeof body?.uid === 'string' ? body.uid : '';
+      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
+      await db.collection(MANIA_CUP_WAITLIST).doc(cible).set(
+        { status: 'left', leftAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_removed',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: cible,
+        targetLabel: cible,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+
     if (!target || !action) {
       return NextResponse.json({ error: 'Requête invalide' }, { status: 400 });
     }
 
-    const db = getAdminDb();
     const docRef = db.collection(MANIA_CUP_REGISTRATIONS).doc(target);
     const snap = await docRef.get();
     if (!snap.exists) return NextResponse.json({ error: 'Inscription introuvable' }, { status: 404 });
@@ -384,177 +567,6 @@ export async function PATCH(req: NextRequest) {
      *
      *  Quand la boutique existera, elle écrira le même champ avec son montant
      *  réel : ce chemin restera le rattrapage. */
-    /** Donner le rôle à tous ceux qui ont réglé et ne l'ont pas encore.
-     *
-     *  Indispensable et pas seulement pour rattraper : un joueur peut très bien
-     *  régler son inscription AVANT de rejoindre le serveur Discord. Discord
-     *  n'a aucun moyen de nous prévenir quand il arrive ; c'est donc ce bouton
-     *  qui referme l'écart, autant de fois qu'il le faut. */
-    if (action === 'sync_discord_roles') {
-      const snap = await db
-        .collection(MANIA_CUP_REGISTRATIONS)
-        .where('status', '==', 'confirmed')
-        .get();
-
-      const absents: string[] = [];
-      let donnes = 0;
-      let raisonBloquante: string | null = null;
-
-      for (const doc of snap.docs) {
-        const r = doc.data() as { tmDisplayName?: string };
-        const res = await donnerRoleInscrit(db, doc.id);
-        if (res.ok) { donnes++; continue; }
-        if (res.raison === 'pas_membre') {
-          absents.push(r.tmDisplayName || doc.id);
-          continue;
-        }
-        // Rôle non configuré ou introuvable : inutile de marteler l'API
-        // Discord soixante-quatre fois pour la même cause.
-        raisonBloquante = res.raison;
-        break;
-      }
-
-      if (raisonBloquante === 'role_non_configure') {
-        return NextResponse.json(
-          { error: 'Aucun rôle n’est configuré — renseigne-le dans l’onglet Configuration.' },
-          { status: 400 }
-        );
-      }
-      if (raisonBloquante === 'role_introuvable') {
-        return NextResponse.json(
-          { error: 'Le rôle configuré n’existe plus sur le serveur Discord.' },
-          { status: 409 }
-        );
-      }
-
-      return NextResponse.json({
-        ok: true,
-        donnes,
-        // Nommés, pas comptés : l'organisation doit pouvoir leur dire de
-        // rejoindre le serveur.
-        absentsDuServeur: absents,
-      });
-    }
-
-    // ── Liste d'attente ──────────────────────────────────────────────────────
-
-    /** Inviter quelqu'un à prendre la place qui vient de se libérer.
-     *
-     *  L'action REFUSE tant qu'aucune place n'est disponible — places réglées
-     *  et places déjà réservées par une autre invitation comprises. C'est ce
-     *  refus qui empêche d'inviter deux personnes sur une seule place, et donc
-     *  de devoir en rembourser une. */
-    if (action === 'waitlist_invite') {
-      const [{ entrees }, reglees, settings] = await Promise.all([
-        lireFileAttente(db),
-        compterPlacesReglees(db),
-        getManiaCupSettings(db),
-      ]);
-      const maintenant = Date.now();
-      const suivant = prochainAInviter({
-        entrees,
-        placesReglees: reglees,
-        placesTotales: settings.maxPlayers,
-        maintenant,
-      });
-      if (!suivant) {
-        return NextResponse.json(
-          {
-            error:
-              'Aucune place à offrir pour l’instant — soit tout est réglé, soit une invitation en cours tient déjà la dernière place.',
-          },
-          { status: 409 }
-        );
-      }
-      // La cible est imposée par la file, jamais choisie dans la requête :
-      // l'ordre d'arrivée est la seule règle annoncée aux joueurs.
-      if (typeof body?.uid === 'string' && body.uid !== suivant.uid) {
-        return NextResponse.json(
-          { error: 'C’est au tour de quelqu’un d’autre dans la file.' },
-          { status: 409 }
-        );
-      }
-
-      // Aucune échéance : la place reste réservée jusqu'à ce que
-      // l'organisation passe au suivant. Une horloge obligerait à annoncer un
-      // délai dans le règlement, donc à s'y tenir même quand la personne
-      // répond une heure trop tard avec une bonne raison.
-      await db.collection(MANIA_CUP_WAITLIST).doc(suivant.uid).set(
-        {
-          status: 'invited',
-          invitedAt: FieldValue.serverTimestamp(),
-          invitedBy: uid,
-          invitationExpiresAt: null,
-        },
-        { merge: true }
-      );
-      await createNotification(db, {
-        userId: suivant.uid,
-        type: 'mania_cup_waitlist_invited',
-        title: 'Une place s’est libérée à la Springs Mania Cup',
-        message:
-          'Elle t’est réservée. Règle ton inscription sans tarder : sans nouvelle de ta part, l’organisation la proposera à la personne suivante.',
-        link: '/mania-cup/inscription',
-      });
-      await writeAdminAuditLog(db, {
-        action: 'mania_cup_waitlist_invited',
-        adminUid: uid,
-        targetType: 'user',
-        targetId: suivant.uid,
-        targetLabel: suivant.uid,
-      });
-      return NextResponse.json({ ok: true, invite: suivant.uid });
-    }
-
-    /** Passer au suivant : la personne invitée n'a pas donné suite.
-     *
-     *  C'est la seule façon de libérer une place réservée. Ce n'est pas une
-     *  sanction — elle peut se remettre dans la file — mais elle repart alors
-     *  de la fin, comme tout le monde : reprendre son rang la ferait passer
-     *  devant des gens qui, eux, ont attendu sans se faire proposer de place. */
-    if (action === 'waitlist_pass') {
-      const cible = typeof body?.uid === 'string' ? body.uid : '';
-      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
-
-      const ref = db.collection(MANIA_CUP_WAITLIST).doc(cible);
-      const doc = await ref.get();
-      if ((doc.data()?.status as string) !== 'invited') {
-        return NextResponse.json(
-          { error: 'Cette personne n’a pas d’invitation en cours.' },
-          { status: 409 }
-        );
-      }
-      await ref.set(
-        { status: 'left', passedAt: FieldValue.serverTimestamp(), passedBy: uid },
-        { merge: true }
-      );
-      await writeAdminAuditLog(db, {
-        action: 'mania_cup_waitlist_passed',
-        adminUid: uid,
-        targetType: 'user',
-        targetId: cible,
-        targetLabel: cible,
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    /** Retirer quelqu'un de la file — désistement annoncé de vive voix, doublon. */
-    if (action === 'waitlist_remove') {
-      const cible = typeof body?.uid === 'string' ? body.uid : '';
-      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
-      await db.collection(MANIA_CUP_WAITLIST).doc(cible).set(
-        { status: 'left', leftAt: FieldValue.serverTimestamp() },
-        { merge: true }
-      );
-      await writeAdminAuditLog(db, {
-        action: 'mania_cup_waitlist_removed',
-        adminUid: uid,
-        targetType: 'user',
-        targetId: cible,
-        targetLabel: cible,
-      });
-      return NextResponse.json({ ok: true });
-    }
 
     if (action === 'set_pc_rental') {
       const rented = body?.pcRental === true;
