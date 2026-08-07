@@ -132,7 +132,10 @@ const PRATIQUE = [
   {
     icon: Monitor,
     title: 'Tu amènes ton setup',
-    text: "La LAN se joue en BYOPC : chacun vient avec sa machine, son écran et ses périphériques. Quelques postes sont disponibles à la location sur place, en nombre très limité — la location se réserve et se règle sur HelloAsso, en même temps que ton inscription ou plus tard.",
+    text: "La LAN se joue en BYOPC : chacun vient avec sa machine, son écran et ses périphériques. Quelques postes sont disponibles à la location sur place, en nombre très limité — la réservation ferme avant les inscriptions.",
+    // La carte annonçait la location sans dire où réserver : le lien manquait
+    // sur tout le site.
+    location: true,
   },
   {
     icon: Coffee,
@@ -388,11 +391,26 @@ export default async function ManiaCupPage() {
           </h2>
 
           <div className="mt-12 grid gap-8 sm:grid-cols-2">
-            {PRATIQUE.map(({ icon: Icon, title, text }) => (
+            {PRATIQUE.map(({ icon: Icon, title, text, location }) => (
               <div key={title} className="border border-white/10 bg-white/[0.02] p-7">
                 <Icon size={26} className="text-[#a364d9]" aria-hidden />
                 <h3 className="font-display mt-4 text-2xl">{title}</h3>
                 <p className="mt-3 leading-relaxed text-[#c9c5d8]">{text}</p>
+                {/* Un lien direct plutôt que le composant client : la page est
+                    rendue côté serveur et possède déjà l'adresse de la
+                    boutique. Rien ne justifie d'attendre le navigateur pour
+                    afficher un lien qu'on connaît déjà. */}
+                {location && settings.shopUrl && (
+                  <a
+                    href={settings.shopUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-5 inline-flex items-center gap-2 border border-[#a364d9]/50 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#7B2FBE]/20"
+                  >
+                    Réserver un poste
+                    <ExternalLink size={15} aria-hidden />
+                  </a>
+                )}
               </div>
             ))}
           </div>

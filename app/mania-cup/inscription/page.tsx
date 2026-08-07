@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass, IdCard,
-} from 'lucide-react';
+  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass, IdCard, Monitor,} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
@@ -750,6 +749,8 @@ function Recap({
 
       <Companions reg={reg} onDone={onReload} />
 
+      <LocationPoste reg={reg} />
+
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
         <p className="text-sm text-[#8d89a8]">
           Pseudo Trackmania enregistré :{' '}
@@ -859,6 +860,51 @@ function Checklist({ reg }: { reg: ManiaCupRegistration }) {
 // La déclaration sert à annoncer combien de personnes viennent. C'est le NOM DU
 // BILLET qui fera foi à l'entrée : quand le règlement arrive, il prend la place
 // du nom déclaré, parce que c'est celui qui sera contrôlé.
+
+/**
+ * Louer un poste.
+ *
+ * La boutique existait, son adresse était renseignée dans la console, et le
+ * composant `TicketButton` savait déjà y mener — mais AUCUNE page ne posait ce
+ * bouton. Le joueur lisait « la location se réserve sur HelloAsso » sans le
+ * moindre lien pour y aller.
+ *
+ * Ce bloc n'apparaît que si l'adresse est renseignée : annoncer une location
+ * qui n'ouvre pas est pire que se taire.
+ */
+function LocationPoste({ reg }: { reg: ManiaCupRegistration }) {
+  const settings = useManiaCupSettings();
+  if (!settings.shopUrl) return null;
+
+  return (
+    <div className="border border-white/15 bg-white/[0.02] p-6">
+      <div className="flex items-start gap-3">
+        <Monitor size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-2xl">Tu n’as pas de PC à transporter ?</h3>
+          <p className="mt-2 text-[#c9c5d8]">
+            Quelques postes sont disponibles à la location pour le week-end —{' '}
+            <strong className="text-white">en nombre très limité</strong>, et la
+            réservation ferme avant les inscriptions.
+          </p>
+          <p className="mt-3 border-l-2 border-[#FFB800] pl-4 text-sm text-[#f2e6c8]">
+            Comme pour ton inscription,{' '}
+            <strong className="text-white">
+              reporte ton code {reg.registrationCode}
+            </strong>{' '}
+            au moment de réserver : c’est lui qui nous dit quel poste garder, et
+            pour qui.
+          </p>
+          <div className="mt-4">
+            {/* Le prix n'est pas écrit ici : il vit dans la boutique, et un
+                tarif recopié à la main finit toujours par diverger. */}
+            <TicketButton kind="rental" variant="outline" label="Réserver un poste" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
   const settings = useManiaCupSettings();
