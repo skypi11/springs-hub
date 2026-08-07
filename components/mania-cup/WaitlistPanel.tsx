@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Clock, X, Hourglass } from 'lucide-react';
+import { UserPlus, Clock, X, Hourglass, SkipForward } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 
 // La file d'attente, vue de l'organisation.
@@ -30,13 +30,11 @@ function quand(ms: number): string {
 export default function WaitlistPanel({
   lignes,
   prochain,
-  delaiHeures,
   onError,
 }: {
   lignes: LigneAttente[];
   /** Qui recevra l'invitation. `null` = aucune place à offrir. */
   prochain: string | null;
-  delaiHeures: number;
   onError: (m: string) => void;
 }) {
   const qc = useQueryClient();
@@ -82,8 +80,8 @@ export default function WaitlistPanel({
         )}
         {suivant && (
           <p className="mt-2 text-xs" style={{ color: 'var(--s-text-muted)' }}>
-            La place lui sera réservée {delaiHeures} h. Personne d’autre ne pourra la
-            prendre pendant ce temps.
+            La place lui sera réservée tant que tu ne passes pas au suivant. Personne
+            d’autre ne pourra la prendre pendant ce temps.
           </p>
         )}
       </div>
@@ -100,10 +98,24 @@ export default function WaitlistPanel({
             <span className="min-w-[150px] flex-1 font-semibold">{l.nom}</span>
 
             {l.statut === 'invited' && !l.expiree && (
-              <span className="tag tag-gold inline-flex items-center gap-1">
-                <Clock size={11} aria-hidden />
-                place réservée jusqu’au {l.expireA ? quand(l.expireA) : '—'}
-              </span>
+              <>
+                <span className="tag tag-gold inline-flex items-center gap-1">
+                  <Clock size={11} aria-hidden />
+                  place réservée · en attente de sa réponse
+                </span>
+                {/* La SEULE façon de libérer une place réservée. Sans ce
+                    bouton, une invitation sans réponse bloquerait la place
+                    indéfiniment — c'est le revers assumé de l'absence
+                    d'horloge. */}
+                <button
+                  onClick={() => agir.mutate({ action: 'waitlist_pass', uid: l.uid })}
+                  disabled={agir.isPending}
+                  title="Libérer la place et la proposer à la personne suivante"
+                  className="bevel-sm inline-flex items-center gap-1 border border-white/20 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+                >
+                  <SkipForward size={11} aria-hidden /> Passer au suivant
+                </button>
+              </>
             )}
             {l.statut === 'invited' && l.expiree && (
               <span className="tag tag-neutral inline-flex items-center gap-1">

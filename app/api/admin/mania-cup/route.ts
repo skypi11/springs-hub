@@ -10,8 +10,7 @@ import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { createNotification } from '@/lib/notifications';
 import { donnerRoleInscrit, retirerRoleInscrit } from '@/lib/mania-cup-alerts';
 import {
-  MANIA_CUP_WAITLIST, prochainAInviter, echeanceInvitation, fileEnAttente,
-  DELAI_INVITATION_HEURES,
+  MANIA_CUP_WAITLIST, prochainAInviter, fileEnAttente,
 } from '@/lib/mania-cup-waitlist';
 import { lireFileAttente, compterPlacesReglees } from '@/lib/mania-cup-waitlist-server';
 import {
@@ -162,7 +161,6 @@ export async function GET(req: NextRequest) {
       waitlist,
       /** Qui recevra l'invitation si on clique. `null` = aucune place à offrir. */
       prochainAInviter: prochain?.uid ?? null,
-      delaiInvitationHeures: DELAI_INVITATION_HEURES,
     });
   } catch (err) {
     captureApiError('admin/mania-cup:GET', err);
@@ -477,13 +475,16 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      const expire = echeanceInvitation(maintenant);
+      // Aucune échéance : la place reste réservée jusqu'à ce que
+      // l'organisation passe au suivant. Une horloge obligerait à annoncer un
+      // délai dans le règlement, donc à s'y tenir même quand la personne
+      // répond une heure trop tard avec une bonne raison.
       await db.collection(MANIA_CUP_WAITLIST).doc(suivant.uid).set(
         {
           status: 'invited',
           invitedAt: FieldValue.serverTimestamp(),
           invitedBy: uid,
-          invitationExpiresAt: Timestamp.fromMillis(expire),
+          invitationExpiresAt: null,
         },
         { merge: true }
       );
@@ -491,7 +492,8 @@ export async function PATCH(req: NextRequest) {
         userId: suivant.uid,
         type: 'mania_cup_waitlist_invited',
         title: 'Une place s’est libérée à la Springs Mania Cup',
-        message: `Elle t’est réservée ${DELAI_INVITATION_HEURES} h. Passé ce délai, elle repart au suivant.`,
+        message:
+          'Elle t’est réservée. Règle ton inscription sans tarder : sans nouvelle de ta part, l’organisation la proposera à la personne suivante.',
         link: '/mania-cup/inscription',
       });
       await writeAdminAuditLog(db, {
@@ -500,9 +502,40 @@ export async function PATCH(req: NextRequest) {
         targetType: 'user',
         targetId: suivant.uid,
         targetLabel: suivant.uid,
-        metadata: { expiresAt: expire },
       });
-      return NextResponse.json({ ok: true, invite: suivant.uid, expireA: expire });
+      return NextResponse.json({ ok: true, invite: suivant.uid });
+    }
+
+    /** Passer au suivant : la personne invitée n'a pas donné suite.
+     *
+     *  C'est la seule façon de libérer une place réservée. Ce n'est pas une
+     *  sanction — elle peut se remettre dans la file — mais elle repart alors
+     *  de la fin, comme tout le monde : reprendre son rang la ferait passer
+     *  devant des gens qui, eux, ont attendu sans se faire proposer de place. */
+    if (action === 'waitlist_pass') {
+      const cible = typeof body?.uid === 'string' ? body.uid : '';
+      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
+
+      const ref = db.collection(MANIA_CUP_WAITLIST).doc(cible);
+      const doc = await ref.get();
+      if ((doc.data()?.status as string) !== 'invited') {
+        return NextResponse.json(
+          { error: 'Cette personne n’a pas d’invitation en cours.' },
+          { status: 409 }
+        );
+      }
+      await ref.set(
+        { status: 'left', passedAt: FieldValue.serverTimestamp(), passedBy: uid },
+        { merge: true }
+      );
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_passed',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: cible,
+        targetLabel: cible,
+      });
+      return NextResponse.json({ ok: true });
     }
 
     /** Retirer quelqu'un de la file — désistement annoncé de vive voix, doublon. */

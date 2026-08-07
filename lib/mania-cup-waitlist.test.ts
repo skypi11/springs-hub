@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   fileEnAttente, rangDe, placesReservees, prochainAInviter, invitationActive,
-  echeanceInvitation, type EntreeAttente,
+  type EntreeAttente,
 } from './mania-cup-waitlist';
 
 const T = 1_800_000_000_000; // instant de référence, arbitraire mais fixe
@@ -88,8 +88,24 @@ describe('qui inviter', () => {
   });
 });
 
-describe('échéance', () => {
-  it('tombe 48 heures plus tard par défaut', () => {
-    expect(echeanceInvitation(T)).toBe(T + 48 * 3600_000);
+describe('sans échéance automatique', () => {
+  it('une invitation émise aujourd’hui tient la place indéfiniment', () => {
+    // Décision de l'organisation : pas d'horloge. Écrire un délai dans le
+    // règlement obligerait à s'y tenir, y compris face à quelqu'un qui répond
+    // une heure trop tard avec une bonne raison. C'est un humain qui passe au
+    // suivant.
+    const l = [e('a', T, 'invited', null), e('b', T + 1, 'waiting')];
+    expect(placesReservees(l, T + 30 * 24 * 3600_000)).toBe(1);
+    expect(prochainAInviter({ entrees: l, placesReglees: 63, placesTotales: 64, maintenant: T + 30 * 24 * 3600_000 }))
+      .toBeNull();
+  });
+
+  it('libère la place dès que la personne invitée est passée', () => {
+    // « Passer au suivant » met la personne à `left` : la place redevient
+    // offrable, et c'est au tour de la suivante.
+    const l = [e('a', T, 'left', null), e('b', T + 1, 'waiting')];
+    expect(placesReservees(l, T)).toBe(0);
+    expect(prochainAInviter({ entrees: l, placesReglees: 63, placesTotales: 64, maintenant: T })?.uid)
+      .toBe('b');
   });
 });

@@ -13,24 +13,27 @@
  * a déjà coûté un double paiement sur cet événement.
  *
  * D'où l'invitation qui RÉSERVE. Inviter quelqu'un immobilise la place le temps
- * qu'il règle : elle est comptée comme prise. Si le délai passe sans règlement,
- * elle retourne au pot et le suivant peut être invité. Le nombre de places
- * offertes au public ne dépasse donc jamais le nombre réellement disponible.
+ * qu'il règle : elle est comptée comme prise, y compris par le formulaire
+ * ouvert au public. Le nombre de places offertes ne dépasse donc jamais le
+ * nombre réellement disponible.
+ *
+ * AUCUNE ÉCHÉANCE AUTOMATIQUE, et c'est une décision. Une horloge obligerait à
+ * annoncer un délai dans le règlement, donc à s'y tenir — y compris le jour où
+ * quelqu'un répond une heure trop tard avec une bonne raison. C'est
+ * l'organisation qui passe au suivant, quand elle juge que la personne ne
+ * répond pas.
  */
 
 export const MANIA_CUP_WAITLIST = 'mania_cup_waitlist';
 
-/** Délai laissé pour régler après une invitation, en heures. */
-export const DELAI_INVITATION_HEURES = 48;
-
 export type StatutAttente =
   /** A demandé une place, attend son tour. */
   | 'waiting'
-  /** Invité à régler — sa place est réservée jusqu'à l'échéance. */
+  /** Invité à régler — sa place lui est réservée. */
   | 'invited'
   /** A réglé : son inscription existe, il quitte la file. */
   | 'converted'
-  /** Est parti, ou a laissé passer son tour. */
+  /** S'est retiré, ou n'a pas répondu à son invitation et a été passé. */
   | 'left';
 
 export type EntreeAttente = {
@@ -38,15 +41,22 @@ export type EntreeAttente = {
   /** Millisecondes. L'ordre d'arrivée décide de tout. */
   createdAt: number;
   statut: StatutAttente;
-  /** Échéance de l'invitation, en millisecondes. */
+  /**
+   * Échéance de l'invitation, en millisecondes.
+   *
+   * Vaut `null` pour toute invitation émise aujourd'hui : plus aucune ne
+   * périme d'elle-même. Le champ subsiste pour les invitations posées avant
+   * cette décision, qu'on continue d'honorer telles qu'elles ont été
+   * annoncées à la personne.
+   */
   expireA?: number | null;
 };
 
 /** L'invitation tient-elle encore la place ? */
 export function invitationActive(e: EntreeAttente, maintenant: number): boolean {
   if (e.statut !== 'invited') return false;
-  // Sans échéance, l'invitation ne périme jamais : c'est un choix explicite de
-  // l'organisation, pas un oubli à rattraper ici.
+  // Sans échéance — le cas normal désormais — l'invitation tient jusqu'à ce
+  // que l'organisation passe au suivant.
   if (e.expireA == null) return true;
   return e.expireA > maintenant;
 }
@@ -59,9 +69,9 @@ export function placesReservees(entrees: EntreeAttente[], maintenant: number): n
 /**
  * La file, dans l'ordre d'arrivée.
  *
- * Ceux dont l'invitation a expiré RESTENT dans la file, à leur rang d'origine :
- * une invitation manquée n'est pas une faute, et les renvoyer en fin de file
- * les punirait d'un délai que l'organisation a choisi.
+ * Ceux dont une ancienne invitation a expiré RESTENT à leur rang : ils n'ont
+ * rien fait de mal, et les renvoyer en fin de file les punirait d'un délai
+ * qu'ils n'avaient pas choisi.
  */
 export function fileEnAttente(entrees: EntreeAttente[]): EntreeAttente[] {
   return entrees
@@ -100,9 +110,4 @@ export function prochainAInviter({
       (e) => e.statut === 'waiting' || (e.statut === 'invited' && !invitationActive(e, maintenant))
     ) ?? null
   );
-}
-
-/** Échéance d'une invitation émise maintenant. */
-export function echeanceInvitation(maintenant: number, heures = DELAI_INVITATION_HEURES): number {
-  return maintenant + heures * 3600_000;
 }

@@ -58,14 +58,9 @@ export default function WaitlistJoin() {
       <div className="border border-[#00D936]/40 bg-[#00D936]/5 p-6">
         <h2 className="font-display text-2xl text-[#00D936]">Une place t’attend</h2>
         <p className="mt-2 text-[#c9c5d8]">
-          Elle t’est réservée jusqu’au{' '}
-          <strong className="text-white">
-            {new Date(moi!.expireA!).toLocaleString('fr-FR', {
-              day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-            })}
-          </strong>
-          . Remplis ton dossier et règle ton inscription avant cette date : passé ce
-          délai, elle repart à la personne suivante.
+          Elle t’est réservée : personne d’autre ne peut la prendre. Remplis ton
+          dossier et règle ton inscription sans tarder — sans nouvelle de ta part,
+          l’organisation la proposera à la personne suivante.
         </p>
       </div>
     );

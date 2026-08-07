@@ -40,7 +40,6 @@ type Payload = {
   registrations: Row[];
   waitlist?: LigneAttente[];
   prochainAInviter?: string | null;
-  delaiInvitationHeures?: number;
   counts: {
     total: number;
     cancelled: number;
@@ -446,7 +445,6 @@ export default function AdminManiaCupPage() {
         <WaitlistPanel
           lignes={data?.waitlist ?? []}
           prochain={data?.prochainAInviter ?? null}
-          delaiHeures={data?.delaiInvitationHeures ?? 48}
           onError={setError}
         />
       )}

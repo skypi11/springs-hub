@@ -1,14 +1,3 @@
-# Règlement — Springs Mania Cup
-
-> Texte prêt à publier. À copier-coller dans **`/admin/mania-cup` → onglet
-> Configuration → Règlement**, puis à publier. Publier crée une nouvelle
-> version : les joueurs déjà inscrits gardent la trace de celle qu'ils ont
-> acceptée, les suivants acceptent la nouvelle.
->
-> Texte complet, sans blanc à combler.
-
----
-
 ## 1. L'événement
 
 La **Springs Mania Cup** est une compétition Trackmania sur place, organisée par
@@ -69,6 +58,10 @@ billet par e-mail de la part de HelloAsso, et votre espace sur le site passe en
 **Les places sont attribuées par ordre de règlement.** Un dossier déposé sans
 paiement ne réserve rien. Une fois les 64 places réglées, l'inscription bascule
 en liste d'attente.
+
+Sur la liste d'attente, les places qui se libèrent sont proposées **dans l'ordre
+d'arrivée**. Une place proposée vous est réservée le temps que vous la régliez ;
+sans réponse de votre part, l'organisation la propose à la personne suivante.
 
 HelloAsso propose, au moment du paiement, une **contribution volontaire** à son
 propre fonctionnement. Elle est libre, modifiable et peut être ramenée à zéro :
@@ -165,8 +158,8 @@ L'organisation attend de chacun ce qu'on attend d'un joueur dans une salle :
 Selon la gravité, l'organisation peut avertir, disqualifier ou exclure. Une
 exclusion pour faute ne donne droit à aucun remboursement.
 
-L'alcool est interdit aux mineurs. L'organisation contrôle l'âge et se réserve
-le droit de refuser un service.
+**Aucune boisson alcoolisée n'est vendue sur place, et il est interdit d'en
+apporter.**
 
 ## 9. Image et enregistrement
 
@@ -219,7 +212,222 @@ L'organisation peut modifier ce règlement jusqu'à l'ouverture de l'événement
 modification donne lieu à une nouvelle version, publiée sur cette page, et les
 joueurs déjà inscrits en sont informés.
 
+Une **traduction anglaise** suit ce règlement, pour la commodité des joueurs
+européens. **Seule la version française fait foi.**
+
 ---
 
-*Springs Mania Cup — organisée par SPRINGS E-SPORT. Inscriptions hébergées sur
+# English version
+
+> **This is a courtesy translation.** The French text above is the only binding
+> version of these rules. If the two ever disagree, the French text prevails.
+
+## 1. The event
+
+The **Springs Mania Cup** is an on-site Trackmania competition, organised by the
+association **SPRINGS E-SPORT** on **Saturday 3 and Sunday 4 October 2026**, at
+**19 rue des Charrons, 58180 Marzy, France**.
+
+It brings together **64 players**, with a **€1,200 prize pool** shared between
+the top finishers. The breakdown is published on the event page.
+
+Registration happens on **aedral.com**, which hosts the platform. Payment happens
+on **HelloAsso**, the association's ticketing service.
+
+## 2. Who can take part
+
+- Be **16 years old on 3 October 2026**. What counts is your age on the day of
+  the event, not on the day you register: someone who is 15 in August but 16 on
+  the day of the LAN may come.
+- Have an **Aedral account** linked to Discord.
+- Be a member of the **Springs E-Sport Discord**. Every announcement and
+  instruction for the weekend goes through it.
+- Have **linked your Trackmania account** through the official Ubisoft sign-in.
+  That is what guarantees the displayed name is really yours, and what lets your
+  results be matched automatically.
+- Have **paid your entry**.
+
+### Players aged 16 and 17
+
+Three documents are required before the place becomes final:
+
+1. a **written authorisation** from the legal guardian;
+2. the **ID document** of that legal guardian, so we can check the signature
+   really comes from them;
+3. the **reference details** of the ID documents of both the player and the legal
+   guardian (type of document, number, issuing authority).
+
+An **adult companion** must be declared and must have paid their ticket. An
+**emergency contact**, reachable throughout the weekend, is also required.
+
+The file is reviewed by the organisers. Until it is approved, the place is not
+guaranteed, even once paid.
+
+## 3. Registration and payment
+
+Registration happens in two steps.
+
+**On the website**, you fill in your file and receive a **registration code** in
+the form `LAN-XXXX`.
+
+**On HelloAsso**, you pay the €30 "Joueur" (Player) ticket and **enter that code**
+in the field provided. It is what links your payment to your file: without it,
+the organisers cannot tell whose money it is — the payer's name is often a
+parent's.
+
+Matching is automatic and takes a few minutes. You receive your ticket by e-mail
+from HelloAsso, and your space on the website switches to "place confirmed".
+
+**Places are allocated in order of payment.** A file submitted without payment
+reserves nothing. Once the 64 places are paid for, registration switches to a
+waiting list.
+
+On the waiting list, places that free up are offered **in order of arrival**. A
+place offered to you is held for you while you pay for it; if you do not respond,
+the organisers offer it to the next person.
+
+At the payment stage, HelloAsso suggests a **voluntary contribution** towards its
+own running costs. It is optional, adjustable and can be set to zero: it goes
+neither to the association nor to Aedral.
+
+## 4. Cancellation and refunds
+
+- **Before payment**: you withdraw your registration from your own space, with no
+  formalities. The place immediately goes back on sale.
+- **After payment, up to and including 19 September 2026**: full refund on
+  request to the organisers.
+- **From 20 September 2026 onwards**: no more refunds. The association's
+  commitments — venue, equipment, prize pool — are made on that date.
+
+If the organisers cancel the event, every ticket is refunded in full.
+
+A ticket is **personal**. It cannot be resold. If you can no longer come, tell
+the organisers: the place goes back to the waiting list.
+
+## 5. Companions and spectators
+
+**Up to three companions** — coach, parent, friend — may enter the **player area**
+with a player. Each one pays a **€20 companion ticket**, entering the
+registration code of the player they are accompanying. Tickets can be bought in a
+single transaction.
+
+The player declares their companions from their own space. It is the **name on
+the ticket** that is checked at the door.
+
+A **spectator ticket** (€10, valid for both days) gives access to the areas open
+to the public, but **not** to the player area.
+
+A spectator ticket cannot be upgraded to player access on site.
+
+## 6. Equipment
+
+**Everyone brings their own equipment**: PC tower, monitor, keyboard, mouse,
+headset, cables, power strip.
+
+- A **10-metre Ethernet cable** is essential: there is no Wi-Fi for players, and
+  the length you need depends on where you end up sitting.
+- A **headset is mandatory**. Speakers are not allowed.
+- The organisers provide power, network, a table and a chair.
+
+Equipment can be **rented from the organisers** for the weekend: a full desktop
+setup, a laptop, or a monitor alone. Booking and payment go through the
+association's online shop, entering your registration code. Stock is limited and
+booking closes before registration does. Peripherals — headset, keyboard, mouse —
+are not included when renting a monitor alone. Prices and availability are
+announced on the event page.
+
+**Equipment you bring remains your own responsibility.** The association's
+insurance covers neither theft, nor breakage, nor electrical damage to personal
+equipment. Check your own insurance if the value of your setup warrants it.
+
+## 7. How the weekend runs
+
+- **Doors open on Saturday 3 October at 9 a.m.** Bring a **photo ID**: it is
+  checked at the door against your registration name.
+- You receive your **badge**. Seats are not assigned: everyone sets up where they
+  like, in order of arrival.
+- **All setups must be finished by midday.** The hour that follows is for
+  testing: network, sound, peripherals. A rig built by midday is a rig whose
+  problems there is still time to fix.
+- **At 1 p.m., the Springs Show opens the event** and announces the formats. They
+  are not known in advance: that is when everyone discovers them, at the same
+  time.
+- **Any player absent 30 minutes after the announced time of their match forfeits
+  it**, and their opponent goes through.
+- **The formats, their rules and their maps are not disclosed in advance.** That
+  is the whole idea of the event: more than 40 brand-new maps, discovered by
+  everyone at the same moment, on the day. They are announced one after another
+  on site, from the Springs Show onwards.
+- Opening and closing times for each day, on the other hand, are firm and
+  published on the event page.
+- Refereeing decisions are made by the organisers and are final for the duration
+  of the event.
+
+## 8. Conduct
+
+The organisers expect from everyone what you would expect of a player in a room
+full of other players:
+
+- no cheating, no third-party software altering the game, no borrowed accounts;
+- no insults, harassment or discriminatory remarks, on site or on Discord;
+- respect for the equipment, the premises and the neighbourhood;
+- respect for the instructions of the organising team and the rules of the venue.
+
+Depending on the seriousness, the organisers may warn, disqualify or exclude. An
+exclusion for misconduct gives no right to a refund.
+
+**No alcoholic drinks are sold on site, and bringing your own is not allowed.**
+
+## 9. Photos, video and streaming
+
+The event is **photographed, filmed and streamed live**, and the recordings may
+stay online after the LAN.
+
+You state at registration whether you agree to your image being published.
+Refusing does not stop you from taking part: your badge flags it to the video
+team, who take it into account when framing shots. For players under 18, this
+permission is given by the legal guardian.
+
+You may change your mind, before or after the event, by writing to the
+organisers.
+
+## 10. Personal data
+
+The information collected is used to organise the event, welcome you and contact
+you. It is neither sold nor passed to third parties for commercial purposes.
+
+| Data | What it is for | How long it is kept |
+|---|---|---|
+| Name, e-mail, phone | welcoming you, writing to you | 1 year after the event |
+| Date of birth | checking the minimum age | 1 year after the event |
+| Trackmania name and account | rankings, results | kept on your profile |
+| Parental authorisation | proving the legal guardian's consent | 1 year after the event |
+| Guardian's ID document (image) | checking the signature | deleted as soon as the file is approved |
+| ID document reference details | recording what was presented | 1 year after the event |
+| Emergency contact | reaching someone if there is a problem | 30 days after the event |
+| Payment (amount, payer, ticket) | the association's accounts | 10 years (accounting obligation) |
+
+You may ask to see, correct or delete your data by writing to the organisers on
+the Springs E-Sport Discord, or from your Aedral settings.
+
+## 11. Prize pool
+
+The **€1,200** prize pool is shared between the top finishers according to the
+breakdown published on the event page. It is paid **by bank transfer within the
+month** following the competition.
+
+For a player under 18, payment is made to the legal guardian.
+
+## 12. Acceptance and changes
+
+Registering means accepting these rules. The version you accepted is recorded,
+with the date.
+
+The organisers may amend these rules up until the event opens. Any amendment
+results in a new version, published on this page, and players already registered
+are informed of it.
+
+---
+
+*Springs Mania Cup — organised by SPRINGS E-SPORT. Registration hosted on
 aedral.com.*
