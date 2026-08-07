@@ -423,22 +423,22 @@ export default function AdminManiaCupPage() {
                   style={r.status === 'cancelled' ? { opacity: 0.45 } : undefined}
                 >
                   <td className="py-4 pr-4">
-                    {/* L'identité civile EN PREMIER, et lisible : c'est elle que
-                        le bénévole compare à la pièce présentée à l'accueil. Elle
-                        était en 12px gris sous le pseudo — présente, mais
-                        invisible : l'organisation croyait qu'elle manquait. */}
+                    {/* Le PSEUDO en premier : c'est par lui qu'on reconnaît un
+                        joueur, c'est lui qui figure sur la page publique et
+                        dans les conversations. L'identité civile vient juste
+                        après, en taille lisible — elle ne sert qu'une fois, au
+                        contrôle de la pièce d'identité à l'accueil, mais elle
+                        était auparavant en 12 px gris, donc invisible. */}
+                    <div className="font-semibold">{r.tmDisplayName || '—'}</div>
                     {r.firstName || r.lastName ? (
-                      <div className="font-semibold">
+                      <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
                         {`${r.firstName} ${r.lastName}`.trim()}
                       </div>
                     ) : (
-                      <div className="font-semibold" style={{ color: 'var(--s-gold)' }}>
+                      <div className="text-sm" style={{ color: 'var(--s-gold)' }}>
                         fiche incomplète
                       </div>
                     )}
-                    <div className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
-                      {r.tmDisplayName || '—'}
-                    </div>
 
                     <div className="mt-1.5 space-y-0.5 text-xs" style={{ color: 'var(--s-text-muted)' }}>
                       {r.email && <div>{r.email}</div>}

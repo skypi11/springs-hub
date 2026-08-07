@@ -359,7 +359,7 @@ export async function POST() {
   // (= machine locale), garantit que cette route ne tourne JAMAIS sur Vercel.
   // Le seed crée un admin permanent dans aedral_admins, donc une exécution
   // accidentelle en prod aurait un impact sécurité réel.
-  if (process.env.NODE_ENV !== 'development' || process.env.VERCEL_ENV !== undefined) {
+  if (process.env.NODE_ENV !== 'development' || Boolean(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
   }
 

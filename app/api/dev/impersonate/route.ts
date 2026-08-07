@@ -9,7 +9,14 @@ export async function POST(req: NextRequest) {
   // Double gate (audit 30/05 🟡 2) : machine locale uniquement (VERCEL_ENV
   // undefined). L'impersonate génère un custom token Firebase utilisable
   // pour signer comme l'uid cible, donc fuite en preview/prod = critique.
-  if (process.env.NODE_ENV !== 'development' || process.env.VERCEL_ENV !== undefined) {
+  // `!== undefined` était trop strict : un `.env.local` issu d'un
+  // `vercel env pull` contient `VERCEL_ENV=` VIDE, ce qui suffisait à faire
+  // croire au code qu'il tournait sur Vercel. L'outil était donc mort en local
+  // — l'endroit exact où il doit servir.
+  //
+  // La garde reste entière : sur Vercel, VERCEL_ENV vaut toujours
+  // « production », « preview » ou « development », donc toujours non vide.
+  if (process.env.NODE_ENV !== 'development' || Boolean(process.env.VERCEL_ENV)) {
     return NextResponse.json({ error: 'Dev only' }, { status: 403 });
   }
 
