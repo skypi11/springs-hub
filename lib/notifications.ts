@@ -33,6 +33,7 @@ export type NotificationType =
   /** Destinée à l'organisation, pas au joueur : un règlement est encaissé mais
    *  la place n'a pas pu être confirmée. */
   | 'mania_cup_payment_orphan'
+  | 'mania_cup_waitlist_invited'
   | 'generic';
 
 export type NotificationPayload = {

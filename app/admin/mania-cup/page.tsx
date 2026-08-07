@@ -18,6 +18,7 @@ import FaqEditor from '@/components/mania-cup/FaqEditor';
 import TicketingSettings from '@/components/mania-cup/TicketingSettings';
 import TierMapping from '@/components/mania-cup/TierMapping';
 import PaymentsPanel, { type MatchTarget } from '@/components/mania-cup/PaymentsPanel';
+import WaitlistPanel, { type LigneAttente } from '@/components/mania-cup/WaitlistPanel';
 import { MANIA_CUP, MANIA_CUP_DOCS } from '@/lib/mania-cup';
 
 /** Libellés des états du dossier parental, pour la liste d'émargement. */
@@ -37,6 +38,9 @@ const GUARDIAN_STATUS_LABELS: Record<Row['guardianConsent'], string> = {
 
 type Payload = {
   registrations: Row[];
+  waitlist?: LigneAttente[];
+  prochainAInviter?: string | null;
+  delaiInvitationHeures?: number;
   counts: {
     total: number;
     cancelled: number;
@@ -402,6 +406,15 @@ export default function AdminManiaCupPage() {
             Badges
           </Link>
         </div>
+      )}
+
+      {tab === 'inscriptions' && (
+        <WaitlistPanel
+          lignes={data?.waitlist ?? []}
+          prochain={data?.prochainAInviter ?? null}
+          delaiHeures={data?.delaiInvitationHeures ?? 48}
+          onError={setError}
+        />
       )}
 
       {tab === 'inscriptions' && (rows.length === 0 ? (

@@ -111,6 +111,8 @@ export type AdminAuditAction =
   | 'mania_cup_guardian_consent_rejected'
   | 'mania_cup_marked_paid'
   | 'mania_cup_marked_unpaid'
+  | 'mania_cup_waitlist_invited'
+  | 'mania_cup_waitlist_removed'
   | 'mania_cup_registration_cancelled'
   | 'mania_cup_country_set'
   | 'mania_cup_pc_rental_set'

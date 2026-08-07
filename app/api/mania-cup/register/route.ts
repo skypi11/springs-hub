@@ -11,6 +11,8 @@ import { clampString } from '@/lib/validation';
 import { getRulebookByScope } from '@/lib/competitions/rulebooks';
 import { decideTraceReglement } from '@/lib/mania-cup-rulebook-trace';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { placesReservees } from '@/lib/mania-cup-waitlist';
+import { lireFileAttente } from '@/lib/mania-cup-waitlist-server';
 import { MANIA_CUP_PAYMENTS } from '@/lib/helloasso/apply';
 import { allocateRegistrationCode, releaseRegistrationCode } from '@/lib/mania-cup-server';
 import {
@@ -310,12 +312,19 @@ export async function POST(req: NextRequest) {
         countTakenSeats(db),
         getManiaCupSettings(db),
       ]);
-      if (taken >= settings.maxPlayers) {
+      // Les places IMMOBILISÉES par une invitation de la liste d'attente
+      // comptent comme prises. Sans ça, une place libérée serait offerte à la
+      // fois à l'invité qui s'apprête à la régler et au premier venu : deux
+      // paiements, une place, un remboursement.
+      const { entrees } = await lireFileAttente(db);
+      const reservees = placesReservees(entrees, Date.now());
+      if (taken + reservees >= settings.maxPlayers) {
         return NextResponse.json(
           {
-          error:
-            `Les ${settings.maxPlayers} places sont réglées, l’événement est complet. Contacte l’organisation sur le Discord Springs pour la liste d’attente.`,
-        },
+            error:
+              `Les ${settings.maxPlayers} places sont prises. Tu peux rejoindre la liste d’attente : tu seras prévenu dès qu’une place se libère.`,
+            waitlistAvailable: true,
+          },
           { status: 409 }
         );
       }

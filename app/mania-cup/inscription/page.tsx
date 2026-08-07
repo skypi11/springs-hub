@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
 import TicketButton from '@/components/mania-cup/TicketButton';
+import WaitlistJoin from '@/components/mania-cup/WaitlistJoin';
 import WithdrawButton from '@/components/mania-cup/WithdrawButton';
 import { useManiaCupSettings } from '@/components/mania-cup/useManiaCupSettings';
 import {
@@ -305,10 +306,9 @@ export default function InscriptionPage() {
           paymentAwaitingReview={ctx?.paymentAwaitingReview ?? false}
         />
       ) : full ? (
-        <Banner tone="warn">
-          Les {seats?.max ?? MANIA_CUP.maxPlayers} places sont réglées. Contacte l’organisation sur le
-          Discord Springs pour être placé sur la liste d’attente.
-        </Banner>
+        <div className="mt-10">
+          <WaitlistJoin />
+        </div>
       ) : (
         <div className="mt-12 space-y-6">
           {/* Ce que personne ne disait avant de s'engager : que le paiement se

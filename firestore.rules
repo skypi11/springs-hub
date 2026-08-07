@@ -610,5 +610,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Springs Mania Cup — liste d'attente ────────────────────────────────────
+    //
+    // Fermée au SDK client comme le reste du module : l'ordre d'arrivée décide
+    // de qui obtient une place libérée, et un rang qu'on pourrait réécrire
+    // depuis un navigateur ne vaudrait rien. Tout passe par les routes serveur.
+    match /mania_cup_waitlist/{uid} {
+      allow read, write: if false;
+    }
+
   }
 }

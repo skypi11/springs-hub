@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
@@ -7,6 +7,12 @@ import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { clampString } from '@/lib/validation';
 import { countries } from '@/lib/countries';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { createNotification } from '@/lib/notifications';
+import {
+  MANIA_CUP_WAITLIST, prochainAInviter, echeanceInvitation, fileEnAttente,
+  DELAI_INVITATION_HEURES,
+} from '@/lib/mania-cup-waitlist';
+import { lireFileAttente, compterPlacesReglees } from '@/lib/mania-cup-waitlist-server';
 import {
   MANIA_CUP_REGISTRATIONS,
   type ManiaCupCompanion,
@@ -114,7 +120,49 @@ export async function GET(req: NextRequest) {
       maxPlayers: settings.maxPlayers,
     };
 
-    return NextResponse.json({ registrations, counts });
+    // La file d'attente voyage avec le reste : la console doit pouvoir dire
+    // qui attend, dans quel ordre, et si une place peut être offerte — sans
+    // deuxième aller-retour.
+    const { entrees } = await lireFileAttente(db);
+    const maintenant = Date.now();
+    const nomsParUid = new Map(
+      registrations.map((r) => [r.uid, r.tmDisplayName || `${r.firstName} ${r.lastName}`.trim()])
+    );
+    const fileDocs = fileEnAttente(entrees);
+    const attenteProfils = fileDocs.length
+      ? await db.getAll(...fileDocs.map((e) => db.collection('users').doc(e.uid)))
+      : [];
+    const profilsAttente = new Map(attenteProfils.map((d) => [d.id, d.data() ?? {}]));
+
+    const waitlist = fileDocs.map((e, i) => {
+      const u = profilsAttente.get(e.uid) ?? {};
+      return {
+        uid: e.uid,
+        rang: i + 1,
+        statut: e.statut,
+        expireA: e.expireA ?? null,
+        expiree: e.statut === 'invited' && e.expireA != null && e.expireA <= maintenant,
+        nom: nomsParUid.get(e.uid) || (u.pseudoTM as string) || (u.displayName as string) || e.uid,
+        discordId: (u.discordId as string) ?? null,
+        demandeLe: e.createdAt,
+      };
+    });
+
+    const prochain = prochainAInviter({
+      entrees,
+      placesReglees: counts.confirmed,
+      placesTotales: settings.maxPlayers,
+      maintenant,
+    });
+
+    return NextResponse.json({
+      registrations,
+      counts,
+      waitlist,
+      /** Qui recevra l'invitation si on clique. `null` = aucune place à offrir. */
+      prochainAInviter: prochain?.uid ?? null,
+      delaiInvitationHeures: DELAI_INVITATION_HEURES,
+    });
   } catch (err) {
     captureApiError('admin/mania-cup:GET', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
@@ -326,6 +374,91 @@ export async function PATCH(req: NextRequest) {
      *
      *  Quand la boutique existera, elle écrira le même champ avec son montant
      *  réel : ce chemin restera le rattrapage. */
+    // ── Liste d'attente ──────────────────────────────────────────────────────
+
+    /** Inviter quelqu'un à prendre la place qui vient de se libérer.
+     *
+     *  L'action REFUSE tant qu'aucune place n'est disponible — places réglées
+     *  et places déjà réservées par une autre invitation comprises. C'est ce
+     *  refus qui empêche d'inviter deux personnes sur une seule place, et donc
+     *  de devoir en rembourser une. */
+    if (action === 'waitlist_invite') {
+      const [{ entrees }, reglees, settings] = await Promise.all([
+        lireFileAttente(db),
+        compterPlacesReglees(db),
+        getManiaCupSettings(db),
+      ]);
+      const maintenant = Date.now();
+      const suivant = prochainAInviter({
+        entrees,
+        placesReglees: reglees,
+        placesTotales: settings.maxPlayers,
+        maintenant,
+      });
+      if (!suivant) {
+        return NextResponse.json(
+          {
+            error:
+              'Aucune place à offrir pour l’instant — soit tout est réglé, soit une invitation en cours tient déjà la dernière place.',
+          },
+          { status: 409 }
+        );
+      }
+      // La cible est imposée par la file, jamais choisie dans la requête :
+      // l'ordre d'arrivée est la seule règle annoncée aux joueurs.
+      if (typeof body?.uid === 'string' && body.uid !== suivant.uid) {
+        return NextResponse.json(
+          { error: 'C’est au tour de quelqu’un d’autre dans la file.' },
+          { status: 409 }
+        );
+      }
+
+      const expire = echeanceInvitation(maintenant);
+      await db.collection(MANIA_CUP_WAITLIST).doc(suivant.uid).set(
+        {
+          status: 'invited',
+          invitedAt: FieldValue.serverTimestamp(),
+          invitedBy: uid,
+          invitationExpiresAt: Timestamp.fromMillis(expire),
+        },
+        { merge: true }
+      );
+      await createNotification(db, {
+        userId: suivant.uid,
+        type: 'mania_cup_waitlist_invited',
+        title: 'Une place s’est libérée à la Springs Mania Cup',
+        message: `Elle t’est réservée ${DELAI_INVITATION_HEURES} h. Passé ce délai, elle repart au suivant.`,
+        link: '/mania-cup/inscription',
+      });
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_invited',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: suivant.uid,
+        targetLabel: suivant.uid,
+        metadata: { expiresAt: expire },
+      });
+      return NextResponse.json({ ok: true, invite: suivant.uid, expireA: expire });
+    }
+
+    /** Retirer quelqu'un de la file — désistement annoncé de vive voix, doublon. */
+    if (action === 'waitlist_remove') {
+      const cible = typeof body?.uid === 'string' ? body.uid : '';
+      if (!cible) return NextResponse.json({ error: 'Joueur manquant.' }, { status: 400 });
+      await db.collection(MANIA_CUP_WAITLIST).doc(cible).set(
+        { status: 'left', leftAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      await writeAdminAuditLog(db, {
+        action: 'mania_cup_waitlist_removed',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: cible,
+        targetLabel: cible,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === 'set_pc_rental') {
       const rented = body?.pcRental === true;
       await docRef.update({
