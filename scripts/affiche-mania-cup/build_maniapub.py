@@ -273,7 +273,13 @@ GRAND = u"""
 
 .logo { width:290px; filter:drop-shadow(0 4px 14px rgba(0,0,0,.8)); }
 .presente { margin-top:8px; font-size:20px; letter-spacing:10px; text-indent:10px; color:#9d98b3; }
-.kick { margin-top:44px; font-size:28px; letter-spacing:13px; text-indent:13px; color:#00D936; }
+/* Le bloc du titre flotte au MILIEU de ce qui reste entre le logo et les
+   sponsors. Sans ça il restait collé en haut et tout l'espace libre tombait
+   d'un seul bloc en dessous : un grand vide sous la date, alors que la colonne
+   de droite, elle, est centrée. Les deux marges automatiques répartissent
+   l'espace au-dessus et en dessous à parts égales. */
+.titre { margin:auto 0; }
+.kick { font-size:28px; letter-spacing:13px; text-indent:13px; color:#00D936; }
 .springs { margin-top:16px; font-size:44px; letter-spacing:23px; text-indent:23px; color:#8f8fa6; line-height:1; }
 .name { margin-top:2px; font-size:150px; line-height:.9; letter-spacing:1px;
   filter:drop-shadow(0 5px 0 rgba(0,0,0,.55)) drop-shadow(0 16px 34px rgba(0,0,0,.85)); }
@@ -284,7 +290,6 @@ GRAND = u"""
 .when .dot { width:9px; height:9px; background:#00D936; transform:rotate(45deg); }
 .when .p { font-size:27px; letter-spacing:9px; text-indent:9px; color:#a364d9; white-space:nowrap; }
 
-.sponsors { margin-top:auto; }
 .sponsors .sl { font-size:19px; letter-spacing:6px; color:#6f6b86; text-shadow:0 3px 12px rgba(0,0,0,.9); }
 .sponsors .row { margin-top:14px; display:flex; align-items:center; gap:20px; }
 .sponsors .card { background:#fff; border-radius:5px; height:78px; padding:10px 20px;
@@ -328,15 +333,19 @@ GRAND_BODY = u"""
     <div class="col-g">
       <img class="logo" src="data:image/png;base64,__LOGO__" alt="Springs E-Sport">
       <div class="presente">__T_PRESENTE__</div>
-      <div class="kick">__T_KICK__</div>
-      <div class="springs">SPRINGS</div>
-      <div class="name">MANIA CUP</div>
-      <div class="rule"></div>
-      <div class="when">
-        <div class="d">__T_DATES__</div>
-        <div class="dot"></div>
-        <div class="p">__T_LIEU__</div>
+
+      <div class="titre">
+        <div class="kick">__T_KICK__</div>
+        <div class="springs">SPRINGS</div>
+        <div class="name">MANIA CUP</div>
+        <div class="rule"></div>
+        <div class="when">
+          <div class="d">__T_DATES__</div>
+          <div class="dot"></div>
+          <div class="p">__T_LIEU__</div>
+        </div>
       </div>
+
       <div class="sponsors">
         <div class="sl">__T_SOUTIEN__</div>
         <div class="row">
