@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Ticket, CircleUser, Globe, ChevronDown } from 'lucide-react';
@@ -35,6 +35,22 @@ type Ctx = { registration?: { registrationCode?: string } | null };
 
 export default function ManiaCupNav() {
   const pathname = usePathname();
+  const [menuOuvert, setMenuOuvert] = useState(false);
+
+  // Changer de page ferme le menu : sans ça il reste ouvert par-dessus la page
+  // d'arrivée, et il faut appuyer une seconde fois pour voir où l'on a atterri.
+  //
+  // Réinitialisé PENDANT LE RENDU, pas dans un effet. Un effet qui appelle
+  // setState déclenche un second rendu en cascade, et le compilateur React le
+  // refuse — le faire taire par un `eslint-disable` sortirait tout ce composant
+  // du compilateur, en silence (voir la mémoire du projet sur le sujet). Ce
+  // motif est celui que recommande React pour remettre un état à zéro quand
+  // une valeur d'entrée change.
+  const [cheminPrecedent, setCheminPrecedent] = useState(pathname);
+  if (cheminPrecedent !== pathname) {
+    setCheminPrecedent(pathname);
+    setMenuOuvert(false);
+  }
 
   // ATTENDRE que l'authentification soit résolue avant d'interroger l'API.
   //
@@ -50,10 +66,6 @@ export default function ManiaCupNav() {
   // l'utilise pas : elle appelle l'API à la main dans un effet.)
   const { firebaseUser, loading: authLoading } = useAuth();
 
-  // Changer de page ferme le menu : sans ça il reste ouvert par-dessus la page
-  // d'arrivée, et il faut appuyer une seconde fois pour voir où l'on a atterri.
-  useEffect(() => { setMenuOuvert(false); }, [pathname]);
-
   const { data } = useQuery({
     queryKey: ['mania-cup', 'register', firebaseUser?.uid ?? 'anon'] as const,
     queryFn: () => apiPublic<Ctx>('/api/mania-cup/register'),
@@ -61,7 +73,6 @@ export default function ManiaCupNav() {
     staleTime: 30_000,
   });
 
-  const [menuOuvert, setMenuOuvert] = useState(false);
   const registered = Boolean(data?.registration);
   /** Le nom de la page où l'on se trouve — c'est lui que porte le bouton. */
   const ongletCourant =
