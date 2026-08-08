@@ -209,7 +209,7 @@ export default function AdminManiaCupPage() {
   function exportRoster() {
     const header = [
       'Nom', 'Prénom', 'Pseudo Trackmania', 'Code', 'Réglé', 'Âge', 'Mineur',
-      'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Poste loué',
+      'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Matériel loué',
       'Emplacement', 'Droit à l’image', 'E-mail', 'Téléphone', 'Contact d’urgence',
     ];
     const body = [...visibleRows]
@@ -227,7 +227,9 @@ export default function AdminManiaCupPage() {
         r.companions.length === 0
           ? ''
           : `${r.companions.filter((c) => c.ticketItemId != null).length}/${r.companions.length} réglé(s)`,
-        r.pcRental ? 'oui' : '',
+        // L'article, pas un « oui » : c'est cette colonne qui dit quel
+        // matériel sortir pour qui, le samedi matin.
+        r.pcRental ? (r.pcRental.label ?? 'location') : '',
         r.seat ?? '',
         r.imageConsent === false ? 'REFUSÉ' : 'accordé',
         r.email,

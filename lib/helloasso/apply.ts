@@ -325,6 +325,9 @@ async function writeOutcome(
             pcRental: {
               itemId: item.itemId,
               amountCents: item.amountCents,
+              // L'intitulé de l'article, tel qu'il figure dans la boutique :
+              // c'est lui qui dit quel matériel préparer.
+              label: item.tierLabel,
               at: FieldValue.serverTimestamp(),
             },
             updatedAt: FieldValue.serverTimestamp(),

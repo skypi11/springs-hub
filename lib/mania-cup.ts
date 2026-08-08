@@ -305,7 +305,16 @@ export interface ManiaCupRegistration {
    */
   payment?: RegistrationPayment | null;
   /** Poste loué sur la billetterie. Ne vaut JAMAIS règlement de l'inscription. */
-  pcRental?: { itemId: number; amountCents: number; at?: unknown } | null;
+  /**
+   * Le matériel loué.
+   *
+   * `label` porte l'intitulé exact de l'article acheté dans la boutique —
+   * « LOCATION PC FIXE », « LOCATION ECRAN »… Sans lui, l'organisation savait
+   * qu'un joueur avait loué et combien il avait payé, mais pas CE QU'IL FAUT
+   * LUI PRÉPARER le jour J. Le montant permettait de le deviner, jusqu'au jour
+   * où deux articles auront le même prix.
+   */
+  pcRental?: { itemId: number; amountCents: number; label?: string; at?: unknown } | null;
   /** Emplacement attribué dans la salle, imprimé sur le badge. */
   seat?: string | null;
   /** Passage à l'accueil le jour J. */

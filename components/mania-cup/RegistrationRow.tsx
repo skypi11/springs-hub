@@ -51,7 +51,7 @@ export type Row = {
     orderId?: number | null;
     itemId?: number | null;
   } | null;
-  pcRental: { amountCents: number } | null;
+  pcRental: { amountCents: number; label?: string } | null;
   seat: string | null;
   checkedIn: boolean;
   /** Horodatages Firestore sérialisés. L'ordre d'arrivée décide de tout quand
@@ -77,6 +77,22 @@ export function dateCourte(t: { _seconds: number }): string {
   return new Date(t._seconds * 1000).toLocaleString('fr-FR', {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
   });
+}
+
+/**
+ * L'article loué, en deux mots pour tenir dans une étiquette.
+ *
+ * Les intitulés de la boutique sont longs et criards — « LOCATION PC FIXE
+ * (2 jours) ». On garde ce qui distingue les articles entre eux, le reste
+ * s'affiche au survol.
+ */
+export function abregerLocation(label: string | undefined): string {
+  if (!label) return 'poste';
+  const l = label.toLowerCase();
+  if (l.includes('portable')) return 'PC portable';
+  if (l.includes('écran') || l.includes('ecran')) return 'écran seul';
+  if (l.includes('fixe')) return 'PC fixe';
+  return label.length > 18 ? `${label.slice(0, 17)}…` : label;
 }
 
 /** Ce dossier attend quelque chose de l'organisation. Sert à allumer le filet
@@ -237,8 +253,14 @@ export default function RegistrationRow({
               </span>
             )}
             {r.pcRental && (
-              <span className="tag tag-violet inline-flex items-center gap-1">
-                <Monitor size={11} aria-hidden /> poste
+              <span
+                className="tag tag-violet inline-flex items-center gap-1"
+                title={r.pcRental.label ?? 'Location convenue avec l’organisation'}
+              >
+                <Monitor size={11} aria-hidden />
+                {/* L'article, pas un « oui » : le jour J, c'est ce mot qui dit
+                    quel matériel sortir du carton. */}
+                {abregerLocation(r.pcRental.label)}
               </span>
             )}
             {r.companions.length > 0 && (
