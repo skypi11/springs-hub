@@ -116,13 +116,21 @@ export default function TierMapping() {
 
   const tiers = data?.tiers ?? [];
 
-  /** Une catégorie attribuée deux fois est presque sûrement une erreur de
-   *  saisie : deux tarifs « joueur » feraient compter deux places pour un seul
-   *  inscrit. */
+  /**
+   * Une catégorie attribuée deux fois est presque toujours une erreur de
+   * saisie : deux tarifs « joueur » feraient compter deux places pour un seul
+   * inscrit.
+   *
+   * SAUF pour la location, où c'est le cas NORMAL : une boutique vend
+   * plusieurs articles — poste fixe, portable, écran seul — qui se traitent
+   * tous de la même façon. L'article précis est conservé à part, dans
+   * l'intitulé du tarif. Avertir ici ferait crier au loup en permanence, et
+   * un avertissement permanent ne se lit plus.
+   */
   const duplicates = useMemo(() => {
     const seen = new Map<string, number>();
     for (const value of Object.values(mapping)) {
-      if (!value) continue;
+      if (!value || value === 'pc_rental') continue;
       seen.set(value, (seen.get(value) ?? 0) + 1);
     }
     return [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k as TicketKind);
