@@ -31,9 +31,9 @@ export default function ReglementPage() {
       <div className="mx-auto max-w-3xl px-6 py-14">
         <div className="flex items-center gap-4">
           <ScrollText size={32} className="text-[#a364d9]" aria-hidden />
-          <h1 className="font-display text-5xl leading-tight">Règlement</h1>
+          <h1 className="font-display text-[34px] sm:text-5xl leading-tight">Règlement</h1>
         </div>
-        <p className="mt-3 text-lg text-[#c9c5d8]">
+        <p className="mt-3 text-base sm:text-lg text-[#c9c5d8]">
           {MANIA_CUP.name} · 3 &amp; 4 octobre 2026 · {MANIA_CUP.city}
         </p>
 

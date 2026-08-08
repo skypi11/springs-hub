@@ -93,14 +93,14 @@ export default async function ManiaCupEnglishPage() {
             <span className="inline-block bg-[#00D936] px-3 py-1 text-sm font-bold tracking-[0.18em] text-[#07050b] uppercase">
               100 % fast learn
             </span>
-            <h1 className="font-display mt-5 text-5xl leading-[0.95] sm:text-6xl">
+            <h1 className="font-display mt-5 text-[34px] leading-[0.95] sm:text-[40px] sm:text-6xl">
               Springs <span className="text-[#00D936]">Mania Cup</span>
             </h1>
             <p className="mt-4 text-xl text-[#c9c5d8]">
               A Trackmania LAN where nobody gets to practise first.
             </p>
 
-            <div className="mt-7 flex flex-wrap gap-x-8 gap-y-3 text-lg">
+            <div className="mt-7 flex flex-wrap gap-x-8 gap-y-3 text-base sm:text-lg">
               <span className="inline-flex items-center gap-2">
                 <CalendarDays size={18} className="text-[#00D936]" aria-hidden />
                 October 3–4, 2026
@@ -114,7 +114,7 @@ export default async function ManiaCupEnglishPage() {
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <Link
                 href="/mania-cup/inscription"
-                className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02]"
               >
                 <Ticket size={20} aria-hidden />
                 Register — €{settings.priceEuros}
@@ -140,10 +140,10 @@ export default async function ManiaCupEnglishPage() {
 
       {/* ---------------- LE FORMAT ---------------- */}
       <section className="mx-auto max-w-4xl px-6 py-20">
-        <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+        <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
           Eight events. None of them plays like the last one.
         </h2>
-        <div className="mt-7 space-y-5 text-lg leading-relaxed text-[#c9c5d8]">
+        <div className="mt-7 space-y-5 text-base sm:text-lg leading-relaxed text-[#c9c5d8]">
           <p>
             More than 40 brand new maps, spread across eight events with nothing
             in common. The full programme drops at the Springs Show on Saturday
@@ -160,7 +160,7 @@ export default async function ManiaCupEnglishPage() {
           {FACTS.map((f) => (
             <div key={f.t} className="panel bevel p-6">
               <f.icon size={22} className="text-[#00D936]" aria-hidden />
-              <h3 className="mt-3 text-lg font-semibold">{f.t}</h3>
+              <h3 className="mt-3 text-base sm:text-lg font-semibold">{f.t}</h3>
               <p className="mt-2 text-[#8d89a8]">{f.d}</p>
             </div>
           ))}
@@ -170,7 +170,7 @@ export default async function ManiaCupEnglishPage() {
       {/* ---------------- HORAIRES ---------------- */}
       <section className="border-y border-white/10 bg-black/30">
         <div className="mx-auto max-w-4xl px-6 py-20">
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">Schedule</h2>
+          <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">Schedule</h2>
           <p className="mt-4 text-[#8d89a8]">
             All times are Paris time (CEST, UTC+2). Opening and closing times are
             firm — plan your travel and your hotel around them.
@@ -179,7 +179,7 @@ export default async function ManiaCupEnglishPage() {
           <div className="mt-10 grid gap-10 sm:grid-cols-2">
             {SCHEDULE.map((day) => (
               <div key={day.d}>
-                <h3 className="font-display border-b border-white/10 pb-4 text-2xl">{day.d}</h3>
+                <h3 className="font-display border-b border-white/10 pb-4 text-xl sm:text-2xl">{day.d}</h3>
                 <ol className="mt-6 space-y-5">
                   {day.rows.map(([time, what]) => (
                     <li key={time} className="flex gap-4">
@@ -196,8 +196,8 @@ export default async function ManiaCupEnglishPage() {
 
       {/* ---------------- VENIR ---------------- */}
       <section className="mx-auto max-w-4xl px-6 py-20">
-        <h2 className="font-display text-4xl leading-tight sm:text-5xl">Getting there</h2>
-        <div className="mt-8 space-y-6 text-lg leading-relaxed text-[#c9c5d8]">
+        <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">Getting there</h2>
+        <div className="mt-8 space-y-6 text-base sm:text-lg leading-relaxed text-[#c9c5d8]">
           <p>
             <strong className="text-white">{MANIA_CUP.address}</strong> — about
             two hours south of Paris. Free parking on site.
@@ -225,7 +225,7 @@ export default async function ManiaCupEnglishPage() {
           <div className="flex gap-4">
             <Languages size={24} className="mt-1 shrink-0 text-[#a364d9]" aria-hidden />
             <div>
-              <h2 className="font-display text-2xl">Before you register</h2>
+              <h2 className="font-display text-xl sm:text-2xl">Before you register</h2>
               <p className="mt-3 text-[#c9c5d8]">
                 This page is in English. The registration flow, the ticketing
                 (HelloAsso) and the Springs Discord are in French — your
@@ -250,17 +250,17 @@ export default async function ManiaCupEnglishPage() {
 
       {/* ---------------- CTA ---------------- */}
       <section className="mx-auto max-w-4xl px-6 py-20 text-center">
-        <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+        <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
           {settings.maxPlayers} seats, not one more
         </h2>
-        <p className="mt-4 text-lg text-[#c9c5d8]">
+        <p className="mt-4 text-base sm:text-lg text-[#c9c5d8]">
           Registration happens here, payment on HelloAsso. Your seat is confirmed
           once the payment goes through.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/mania-cup/inscription"
-            className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02]"
+            className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02]"
           >
             Register — €{settings.priceEuros}
             <ArrowRight size={20} aria-hidden />

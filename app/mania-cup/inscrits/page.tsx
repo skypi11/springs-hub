@@ -44,7 +44,7 @@ export default function InscritsPage() {
       <div className="mx-auto max-w-4xl px-6 py-14">
         <div className="flex items-center gap-4">
           <Users size={32} className="text-[#a364d9]" aria-hidden />
-          <h1 className="font-display text-5xl leading-tight">Les inscrits</h1>
+          <h1 className="font-display text-[34px] sm:text-5xl leading-tight">Les inscrits</h1>
         </div>
 
         {loading ? (
@@ -96,7 +96,7 @@ export default function InscritsPage() {
               <div className="mt-12 text-center">
                 <Link
                   href="/mania-cup/inscription"
-                  className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
+                  className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
                 >
                   <Ticket size={20} aria-hidden />
                   S’inscrire — {settings.priceEuros} €
@@ -113,7 +113,7 @@ export default function InscritsPage() {
 function Stat({ value, label, tone }: { value: number; label: string; tone?: 'ok' }) {
   return (
     <div className="border border-white/10 bg-white/[0.02] p-5 text-center">
-      <div className={`font-display text-4xl ${tone === 'ok' ? 'text-[#00D936]' : ''}`}>
+      <div className={`font-display text-[28px] sm:text-4xl ${tone === 'ok' ? 'text-[#00D936]' : ''}`}>
         {value}
       </div>
       <div className="mt-1 text-xs tracking-wide text-[#8d89a8]">{label}</div>

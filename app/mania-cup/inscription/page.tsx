@@ -197,10 +197,10 @@ export default function InscriptionPage() {
           <ArrowLeft size={16} aria-hidden />
           Retour à la présentation
         </Link>
-        <h1 className="font-display mt-6 text-5xl leading-tight">
+        <h1 className="font-display mt-6 text-[34px] sm:text-5xl leading-tight">
           Les inscriptions ne sont pas encore ouvertes
         </h1>
-        <p className="mt-4 text-lg text-[#c9c5d8]">
+        <p className="mt-4 text-base sm:text-lg text-[#c9c5d8]">
           Elles ouvriront avec l’annonce officielle de la Springs Mania Cup.
           Rejoins le Discord Springs E-Sport pour être prévenu le jour même —
           il n’y aura que 64 places.
@@ -254,10 +254,10 @@ export default function InscriptionPage() {
         Retour à la présentation
       </Link>
 
-      <h1 className="font-display mt-6 text-5xl leading-tight sm:text-6xl">
+      <h1 className="font-display mt-6 text-[34px] leading-tight sm:text-[40px] sm:text-6xl">
         {reg ? 'Mon inscription' : 'Inscription'}
       </h1>
-      <p className="mt-3 text-lg text-[#c9c5d8]">
+      <p className="mt-3 text-base sm:text-lg text-[#c9c5d8]">
         Springs Mania Cup · 3 &amp; 4 octobre 2026 · {MANIA_CUP.city}
       </p>
 
@@ -315,7 +315,7 @@ export default function InscriptionPage() {
               découvrir après avoir rempli le dossier donne l'impression que
               quelque chose a mal tourné. */}
           <div className="border border-white/10 bg-white/[0.02] p-6">
-            <h2 className="font-display text-2xl">Comment ça se passe</h2>
+            <h2 className="font-display text-xl sm:text-2xl">Comment ça se passe</h2>
             <ol className="mt-4 space-y-3 text-[#c9c5d8]">
               <li className="flex gap-3">
                 <span className="font-display shrink-0 text-xl text-[#00D936]">1</span>
@@ -635,7 +635,7 @@ export default function InscriptionPage() {
                 <button
                   type="submit"
                   disabled={submitting || !birthDate || (Boolean(ctx?.rulebook) && !rulesAccepted)}
-                  className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02] disabled:opacity-60"
+                  className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.02] disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="animate-spin" size={18} aria-hidden />}
                   {mustComplete ? 'Compléter mon dossier' : 'Valider mon inscription'}
@@ -670,7 +670,7 @@ function Recap({
       <Checklist reg={reg} />
 
       <div className="border border-[#00D936]/40 bg-[#00D936]/10 p-7">
-        <h2 className="font-display text-3xl">Ton inscription est enregistrée</h2>
+        <h2 className="font-display text-2xl sm:text-3xl">Ton inscription est enregistrée</h2>
         <p className="mt-3 text-[#c9c5d8]">
           Elle sera définitive une fois le règlement de {settings.priceEuros} € reçu.
         </p>
@@ -679,7 +679,7 @@ function Recap({
           <div className="text-xs tracking-[0.2em] text-[#8d89a8] uppercase">
             Ton code d’inscription
           </div>
-          <div className="font-display mt-1 text-4xl text-[#00D936]">
+          <div className="font-display mt-1 text-[28px] sm:text-4xl text-[#00D936]">
             {reg.registrationCode}
           </div>
           <p className="mt-3 text-sm text-[#c9c5d8]">
@@ -812,7 +812,7 @@ function Checklist({ reg }: { reg: ManiaCupRegistration }) {
             : 'border-[#FFB800]/40 bg-[#FFB800]/[0.08]'
       }`}
     >
-      <h2 className="font-display text-2xl">
+      <h2 className="font-display text-xl sm:text-2xl">
         {allDone
           ? 'Ta place est acquise'
           : left === 0
@@ -881,7 +881,7 @@ function LocationPoste({ reg }: { reg: ManiaCupRegistration }) {
       <div className="flex items-start gap-3">
         <Monitor size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-2xl">Tu n’as pas de PC à transporter ?</h3>
+          <h3 className="font-display text-xl sm:text-2xl">Tu n’as pas de PC à transporter ?</h3>
           <p className="mt-2 text-[#c9c5d8]">
             Quelques postes sont disponibles à la location pour le week-end —{' '}
             <strong className="text-white">en nombre très limité</strong>, et la
@@ -972,7 +972,7 @@ function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => 
       <div className="flex items-start gap-3">
         <UserPlus size={22} className="mt-0.5 shrink-0 text-[#a364d9]" aria-hidden />
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-2xl">Tu viens accompagné ?</h3>
+          <h3 className="font-display text-xl sm:text-2xl">Tu viens accompagné ?</h3>
           <p className="mt-2 text-[#c9c5d8]">
             Jusqu’à {MAX_COMPANIONS} personnes peuvent t’accompagner dans la zone
             joueurs — parent, coach, ami. Chacune doit prendre un{' '}
@@ -1157,7 +1157,7 @@ function GuardianConsent({
         rejected ? 'border-red-500/40 bg-red-500/10' : 'border-[#FFB800]/40 bg-[#FFB800]/10'
       }`}
     >
-      <h3 className="font-display text-2xl">
+      <h3 className="font-display text-xl sm:text-2xl">
         {rejected ? 'Dossier à corriger' : 'Tu as moins de 18 ans : deux pièces à fournir'}
       </h3>
 
@@ -1453,7 +1453,7 @@ function Step({
           <Circle size={26} className="mt-0.5 shrink-0 text-[#8d89a8]" aria-hidden />
         )}
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-2xl">
+          <h2 className="font-display text-xl sm:text-2xl">
             <span className="text-[#8d89a8]">{n}.</span> {title}
           </h2>
           <p className="mt-2 text-[#c9c5d8]">{desc}</p>

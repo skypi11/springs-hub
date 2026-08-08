@@ -37,17 +37,17 @@ export default function SpectateursPage() {
       <div className="mx-auto max-w-4xl px-6 py-14">
         <div className="flex items-center gap-4">
           <Users size={32} className="text-[#a364d9]" aria-hidden />
-          <h1 className="font-display text-5xl leading-tight">Venir en spectateur</h1>
+          <h1 className="font-display text-[34px] sm:text-5xl leading-tight">Venir en spectateur</h1>
         </div>
 
-        <p className="mt-6 text-lg leading-relaxed text-[#c9c5d8]">
+        <p className="mt-6 text-base sm:text-lg leading-relaxed text-[#c9c5d8]">
           La Springs Mania Cup est ouverte au public. Tu n’as ni compte à créer, ni
           inscription à remplir : un billet suffit, et tu entres.
         </p>
 
         {/* ---- Ce qu'on vient voir ---- */}
         <section className="mt-14">
-          <h2 className="font-display text-3xl">Ce que tu viens voir</h2>
+          <h2 className="font-display text-2xl sm:text-3xl">Ce que tu viens voir</h2>
           <div className="mt-6 grid gap-5 sm:grid-cols-3">
             <Card icon={Radio} title="Un plateau commenté">
               Une scène, des présentateurs et des casteurs commentent la compétition
@@ -65,7 +65,7 @@ export default function SpectateursPage() {
 
         {/* ---- Tarifs ---- */}
         <section className="mt-16">
-          <h2 className="font-display text-3xl">Tarifs</h2>
+          <h2 className="font-display text-2xl sm:text-3xl">Tarifs</h2>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {TARIFS.map((t) => (
               <div
@@ -77,7 +77,7 @@ export default function SpectateursPage() {
                 }`}
               >
                 <div
-                  className={`font-display text-4xl ${t.free ? 'text-[#00D936]' : ''}`}
+                  className={`font-display text-[28px] sm:text-4xl ${t.free ? 'text-[#00D936]' : ''}`}
                 >
                   {t.price}
                 </div>
@@ -98,7 +98,7 @@ export default function SpectateursPage() {
         {/* ---- La limite à connaître avant d'acheter ---- */}
         <section className="mt-16">
           <div className="border-l-4 border-[#FFB800] bg-[#FFB800]/[0.08] p-6">
-            <h2 className="font-display text-2xl">
+            <h2 className="font-display text-xl sm:text-2xl">
               Un billet spectateur ne donne pas accès à la zone de jeu
             </h2>
             <p className="mt-3 leading-relaxed text-[#f2e6c8]">
@@ -124,7 +124,7 @@ export default function SpectateursPage() {
 
         {/* ---- Infos pratiques ---- */}
         <section className="mt-16">
-          <h2 className="font-display text-3xl">Sur place</h2>
+          <h2 className="font-display text-2xl sm:text-3xl">Sur place</h2>
           <div className="mt-6 space-y-5">
             <Row icon={MapPin} title="Adresse">
               {MANIA_CUP.address}. Parking sur place.{' '}
@@ -148,7 +148,7 @@ export default function SpectateursPage() {
           <p className="text-[#8d89a8]">Tu veux jouer plutôt que regarder ?</p>
           <Link
             href="/mania-cup/inscription"
-            className="mt-4 inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
+            className="mt-4 inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
           >
             <Ticket size={20} aria-hidden />
             S’inscrire comme joueur — {settings.priceEuros} €
