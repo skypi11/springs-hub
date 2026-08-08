@@ -44,6 +44,7 @@ type Payload = {
   tiers?: Tier[];
   tierMap?: string;
   codeField?: string;
+  pcRentalEuros?: number;
 };
 
 const euros = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
@@ -199,6 +200,27 @@ export default function TierMapping() {
               </p>
             </div>
           )}
+
+          {/* Le prix affiché sur le site est saisi à la main : rien ne
+              l'empêche de vieillir quand la boutique change. On le confronte
+              donc au moins cher des articles qu'on vient de lire. */}
+          {(() => {
+            const locations = tiers.filter((t) => t.formType === 'Shop');
+            if (locations.length === 0 || !data.pcRentalEuros) return null;
+            const moinsCher = Math.min(...locations.map((t) => t.priceCents)) / 100;
+            if (moinsCher === data.pcRentalEuros) return null;
+            return (
+              <div
+                className="mt-4 border p-4 text-sm"
+                style={{ borderColor: 'rgba(255,184,0,.4)', background: 'rgba(255,184,0,.06)', color: '#f2e6c8' }}
+              >
+                Le site annonce la location « à partir de{' '}
+                <strong>{data.pcRentalEuros} €</strong> », alors que le moins cher de
+                la boutique est à <strong>{moinsCher} €</strong>. Corrige le prix dans
+                l’onglet Configuration.
+              </div>
+            );
+          })()}
 
           {tiers.length === 0 ? (
             <p className="mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>

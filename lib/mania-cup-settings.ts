@@ -42,8 +42,17 @@ export interface ManiaCupSettings {
   /** Billet public, valable les deux jours. */
   spectatorEuros: number;
   companionEuros: number;
-  /** Zéro tant que le prix n'est pas arrêté : les boutons restent alors muets
-   *  plutôt que d'annoncer une location à 0 €. */
+  /**
+   * Prix d'APPEL de la location — le moins cher des articles de la boutique.
+   *
+   * La boutique en vend plusieurs (poste fixe, portable, écran seul), le site
+   * n'en affiche qu'un, précédé de « à partir de ». Zéro = aucun prix affiché,
+   * plutôt qu'une location annoncée à 0 €.
+   *
+   * L'écran de correspondance des tarifs compare cette valeur au moins cher
+   * qu'il lit chez HelloAsso et prévient si les deux divergent : c'est le seul
+   * garde-fou contre un chiffre recopié qui vieillit.
+   */
   pcRentalEuros: number;
   prizePoolEuros: number;
   maxPlayers: number;

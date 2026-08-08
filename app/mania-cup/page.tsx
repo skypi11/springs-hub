@@ -413,7 +413,7 @@ export default async function ManiaCupPage() {
                         qu'il vaut zéro — mieux vaut se taire qu'annoncer une
                         location gratuite. */}
                     Réserver un poste
-                    {settings.pcRentalEuros > 0 && ` — ${settings.pcRentalEuros} €`}
+                    {settings.pcRentalEuros > 0 && ` — à partir de ${settings.pcRentalEuros} €`}
                     <ExternalLink size={15} aria-hidden />
                   </a>
                 )}

@@ -75,6 +75,9 @@ export async function GET(req: NextRequest) {
         introuvables,
         tierMap: settings.helloAssoTierMap,
         codeField: settings.helloAssoCodeField,
+        // Sert au contrôle de cohérence : le site annonce « à partir de » ce
+        // prix, il doit correspondre au moins cher des articles de la boutique.
+        pcRentalEuros: settings.pcRentalEuros,
       });
     }
 

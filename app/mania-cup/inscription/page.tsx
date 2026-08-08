@@ -896,15 +896,16 @@ function LocationPoste({ reg }: { reg: ManiaCupRegistration }) {
             pour qui.
           </p>
           <div className="mt-4">
-            {/* Le prix vient du réglage de la console, jamais d'une constante :
-                c'est le même champ que l'organisation tient à jour, donc il ne
-                peut pas diverger tout seul. Masqué tant qu'il vaut zéro. */}
+            {/* « À partir de », parce que la boutique vend TROIS articles à des
+                prix différents — poste fixe, portable, écran seul. Un prix sec
+                laisserait croire à un tarif unique, et le plus cher des trois
+                ferait fuir qui ne cherchait qu'un écran. */}
             <TicketButton
               kind="rental"
               variant="outline"
               label={
                 settings.pcRentalEuros > 0
-                  ? `Réserver un poste — ${settings.pcRentalEuros} €`
+                  ? `Réserver un poste — à partir de ${settings.pcRentalEuros} €`
                   : 'Réserver un poste'
               }
             />
