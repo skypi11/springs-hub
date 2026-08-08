@@ -212,16 +212,16 @@ export default async function ManiaCupPage() {
               </span>
             </div>
 
-            <h1 className="font-display mt-4 text-6xl leading-[0.92] sm:text-7xl lg:text-8xl">
+            <h1 className="font-display mt-4 text-[46px] leading-[0.92] sm:text-7xl lg:text-8xl">
               Springs<br />Mania Cup
             </h1>
 
-            <p className="font-display mt-6 text-3xl leading-tight sm:text-4xl">
+            <p className="font-display mt-6 text-3xl leading-tight sm:text-[28px] sm:text-4xl">
               Ton talent,{' '}
               <span className="text-[#00D936]">pas ton grind</span>
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-3 text-lg">
+            <div className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-3 text-base sm:text-lg">
               <span className="font-semibold">3 &amp; 4 octobre 2026</span>
               <span className="flex items-center gap-2 text-[#a364d9]">
                 <MapPin size={18} aria-hidden />
@@ -234,7 +234,7 @@ export default async function ManiaCupPage() {
             <div className="mt-8 flex flex-wrap items-center gap-5">
               <Link
                 href={INSCRIPTION_URL}
-                className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
+                className="inline-flex items-center gap-2 bg-[#00D936] px-7 py-4 text-base sm:text-lg font-bold text-[#07050b] transition-transform hover:scale-[1.03]"
               >
                 <Ticket size={20} aria-hidden />
                 S’inscrire — {settings.priceEuros} €
@@ -268,7 +268,7 @@ export default async function ManiaCupPage() {
                 i === 2 ? 'border-l-0 lg:border-l' : ''
               }`}
             >
-              <div className="font-display text-5xl lg:text-6xl">{s.value}</div>
+              <div className="font-display text-[42px] sm:text-5xl lg:text-[40px] sm:text-6xl">{s.value}</div>
               <div className="mt-1 text-xs tracking-[0.18em] text-[#8d89a8] uppercase">
                 {s.label}
               </div>
@@ -282,11 +282,11 @@ export default async function ManiaCupPage() {
         <span className="inline-block bg-[#00D936] px-3 py-1 text-sm font-bold tracking-[0.18em] text-[#07050b] uppercase">
           Une première
         </span>
-        <h2 className="font-display mt-5 text-4xl leading-tight sm:text-5xl">
+        <h2 className="font-display mt-5 text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
           Une LAN 100 % fast learn
         </h2>
 
-        <div className="mt-7 space-y-5 text-lg leading-relaxed text-[#c9c5d8]">
+        <div className="mt-7 space-y-5 text-base sm:text-lg leading-relaxed text-[#c9c5d8]">
           <p>
             Sur une compétition Trackmania classique, la victoire revient souvent à
             celui qui a refait la même map cinq cents fois. Ici, personne ne part
@@ -316,10 +316,10 @@ export default async function ManiaCupPage() {
       {/* ---------------- LES ÉPREUVES, SANS LES RÉPONSES ---------------- */}
       <section className="border-y border-white/10 bg-black/30">
         <div className="mx-auto max-w-4xl px-6 py-20">
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+          <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
             Huit épreuves, huit indices
           </h2>
-          <p className="mt-4 max-w-2xl text-lg text-[#c9c5d8]">
+          <p className="mt-4 max-w-2xl text-base sm:text-lg text-[#c9c5d8]">
             Tu ne sauras pas ce que tu vas jouer — mais tu sauras à quoi te préparer.
             Voici l’ordre du week-end et, pour chaque épreuve, le réflexe qui ne te
             servira à rien. Le reste se découvre sur place.
@@ -335,7 +335,7 @@ export default async function ManiaCupPage() {
       {/* ---------------- DÉROULÉ ---------------- */}
       <section className="border-y border-white/10 bg-black/30">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+          <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
             Le déroulé des deux jours
           </h2>
           <p className="mt-4 max-w-2xl text-[#8d89a8]">
@@ -366,11 +366,11 @@ export default async function ManiaCupPage() {
       <section className="mx-auto max-w-4xl px-6 py-20">
         <div className="flex items-center gap-4">
           <Trophy size={30} className="text-[#00D936]" aria-hidden />
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+          <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
             {settings.prizePoolEuros.toLocaleString('fr-FR')} € de cashprize
           </h2>
         </div>
-        <div className="mt-7 space-y-5 text-lg leading-relaxed text-[#c9c5d8]">
+        <div className="mt-7 space-y-5 text-base sm:text-lg leading-relaxed text-[#c9c5d8]">
           <p>
             Chaque épreuve du samedi a ses propres récompenses, remises le jour même.
           </p>
@@ -386,7 +386,7 @@ export default async function ManiaCupPage() {
       {/* ---------------- INFOS PRATIQUES ---------------- */}
       <section className="border-t border-white/10 bg-black/30">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+          <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
             Infos pratiques
           </h2>
 
@@ -394,7 +394,7 @@ export default async function ManiaCupPage() {
             {PRATIQUE.map(({ icon: Icon, title, text, location }) => (
               <div key={title} className="border border-white/10 bg-white/[0.02] p-7">
                 <Icon size={26} className="text-[#a364d9]" aria-hidden />
-                <h3 className="font-display mt-4 text-2xl">{title}</h3>
+                <h3 className="font-display mt-4 text-xl sm:text-2xl">{title}</h3>
                 <p className="mt-3 leading-relaxed text-[#c9c5d8]">{text}</p>
                 {/* Un lien direct plutôt que le composant client : la page est
                     rendue côté serveur et possède déjà l'adresse de la
@@ -433,7 +433,7 @@ export default async function ManiaCupPage() {
         <div className="mx-auto max-w-6xl px-6 py-20">
           <div className="flex items-center gap-4">
             <MapPin size={30} className="text-[#a364d9]" aria-hidden />
-            <h2 className="font-display text-4xl leading-tight sm:text-5xl">
+            <h2 className="font-display text-[28px] leading-tight sm:text-[34px] sm:text-5xl">
               Comment venir
             </h2>
           </div>
@@ -443,7 +443,7 @@ export default async function ManiaCupPage() {
               <div className="text-xs tracking-[0.24em] text-[#8d89a8] uppercase">
                 Adresse
               </div>
-              <p className="mt-2 text-2xl leading-snug">
+              <p className="mt-2 text-xl sm:text-2xl leading-snug">
                 {MANIA_CUP.address}
               </p>
 
@@ -510,7 +510,7 @@ export default async function ManiaCupPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-4">
                 <Users size={28} className="text-[#a364d9]" aria-hidden />
-                <h2 className="font-display text-3xl leading-tight sm:text-4xl">
+                <h2 className="font-display text-3xl leading-tight sm:text-[28px] sm:text-4xl">
                   Tu peux aussi venir regarder
                 </h2>
               </div>
@@ -572,10 +572,10 @@ export default async function ManiaCupPage() {
           }}
         />
         <div className="relative mx-auto max-w-3xl px-6 py-24 text-center">
-          <h2 className="font-display text-5xl leading-tight sm:text-6xl">
+          <h2 className="font-display text-[34px] leading-tight sm:text-[40px] sm:text-6xl">
             {settings.maxPlayers} places, pas une de plus
           </h2>
-          <p className="mt-5 text-lg text-[#c9c5d8]">
+          <p className="mt-5 text-base sm:text-lg text-[#c9c5d8]">
             L’inscription se fait ici, le paiement sur HelloAsso. Ta place n’est
             confirmée qu’une fois le règlement reçu.
           </p>
@@ -606,12 +606,12 @@ function EpreuveJour({
 }) {
   return (
     <div>
-      <h3 className="font-display border-b border-white/10 pb-4 text-3xl">{titre}</h3>
+      <h3 className="font-display border-b border-white/10 pb-4 text-2xl sm:text-3xl">{titre}</h3>
       <ol className="mt-2">
         {items.map((it, i) => (
           <li key={it.heure} className="flex gap-5 border-b border-white/[0.06] py-6">
             <span
-              className="font-display w-10 shrink-0 text-3xl leading-none"
+              className="font-display w-10 shrink-0 text-2xl sm:text-3xl leading-none"
               style={{ color: 'var(--s-text-muted)' }}
               aria-hidden
             >
@@ -619,8 +619,8 @@ function EpreuveJour({
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-lg font-semibold">Épreuve {depart + i}</span>
-                <span className="font-display text-lg text-[#00D936]">{it.heure}</span>
+                <span className="text-base sm:text-lg font-semibold">Épreuve {depart + i}</span>
+                <span className="font-display text-base sm:text-lg text-[#00D936]">{it.heure}</span>
               </div>
               <p className="mt-1 text-[#8d89a8]">{it.indice}</p>
             </div>
@@ -640,15 +640,15 @@ function Day({
 }) {
   return (
     <div>
-      <h3 className="font-display border-b border-white/10 pb-4 text-3xl">{title}</h3>
+      <h3 className="font-display border-b border-white/10 pb-4 text-2xl sm:text-3xl">{title}</h3>
       <ol className="mt-7 space-y-7">
         {items.map((it) => (
           <li key={it.h} className="flex gap-5">
-            <span className="font-display w-20 shrink-0 text-2xl text-[#00D936]">
+            <span className="font-display w-20 shrink-0 text-xl sm:text-2xl text-[#00D936]">
               {it.h}
             </span>
             <div>
-              <div className="text-lg font-semibold">{it.t}</div>
+              <div className="text-base sm:text-lg font-semibold">{it.t}</div>
               {it.d && <div className="mt-1 text-[#8d89a8]">{it.d}</div>}
             </div>
           </li>

@@ -67,15 +67,30 @@ export default function ManiaCupNav() {
   const en = pathname === '/mania-cup/en';
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-white/10 bg-[#07050b]/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
+    // SUR MOBILE la barre est FIXE, pas collante, et c'est une correction.
+    //
+    // La coquille du site réserve 56 px en haut pour le bouton de menu, mais
+    // ce n'est qu'une marge intérieure : le contenu DÉFILE par-dessous, et la
+    // barre collante se calait sous cette bande. Résultat, un carré sombre
+    // flottait au-dessus des titres — « SAMEDI 3 OCTOBRE » s'affichait
+    // « AMEDI 3 OCTOBRE » — et une bande de texte défilait au-dessus de la
+    // navigation, sans rien pour l'arrêter.
+    //
+    // Fixée en haut de l'écran, elle masque cette bande. Sa marge à gauche
+    // dégage le bouton de menu, qui reste au-dessus d'elle (z 60 contre 30).
+    <nav className="fixed inset-x-0 top-0 z-30 border-b border-white/10 bg-[#07050b]/95 backdrop-blur-md lg:sticky">
+      <div className="mx-auto flex max-w-6xl items-center gap-3 py-2.5 pr-3 pl-16 sm:gap-6 lg:py-3 lg:pr-6 lg:pl-6">
         <Link href="/mania-cup" className="hidden shrink-0 sm:block">
           <span className="font-display text-xl leading-none tracking-wide">
             Springs <span className="text-[#00D936]">Mania Cup</span>
           </span>
         </Link>
 
-        <div className="-mx-2 flex min-w-0 flex-1 gap-1 overflow-x-auto px-2">
+        {/* La piste défile : à 390 px, « Spectateurs » sortait de l'écran sans
+            que rien ne le laisse deviner. Le dégradé à droite dit qu'il y a une
+            suite, et la barre de défilement reste masquée pour ne pas manger
+            de la hauteur. */}
+        <div className="mc-onglets -mx-2 flex min-w-0 flex-1 gap-1 overflow-x-auto px-2">
           {TABS.map((t) => {
             const active = pathname === t.href;
             return (
@@ -109,7 +124,7 @@ export default function ManiaCupNav() {
 
         <Link
           href="/mania-cup/inscription"
-          className={`inline-flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-bold transition-transform hover:scale-[1.03] ${
+          className={`inline-flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm font-bold transition-transform hover:scale-[1.03] sm:gap-2 sm:px-4 ${
             registered
               ? `border ${onSpace ? 'border-[#00D936] text-[#00D936]' : 'border-white/20 text-white'}`
               : 'bg-[#00D936] text-[#07050b]'
@@ -132,6 +147,17 @@ export default function ManiaCupNav() {
           )}
         </Link>
       </div>
+      <style jsx global>{`
+        .mc-onglets {
+          scrollbar-width: none;
+          -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+                  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+        }
+        .mc-onglets::-webkit-scrollbar { display: none; }
+        @media (min-width: 1024px) {
+          .mc-onglets { -webkit-mask-image: none; mask-image: none; }
+        }
+      `}</style>
     </nav>
   );
 }

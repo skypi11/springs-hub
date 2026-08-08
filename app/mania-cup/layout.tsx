@@ -8,7 +8,9 @@ export default function ManiaCupLayout({ children }: { children: React.ReactNode
   return (
     <div className="min-h-screen bg-[#07050b]">
       <ManiaCupNav />
-      {children}
+      {/* La barre étant fixe sur mobile, le contenu doit démarrer sous elle.
+          Sur grand écran elle est collante et occupe sa place toute seule. */}
+      <div className="pt-[52px] lg:pt-0">{children}</div>
     </div>
   );
 }
