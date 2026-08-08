@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Ticket, CircleUser, Globe } from 'lucide-react';
+import { Ticket, CircleUser, Globe, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiPublic } from '@/lib/api-client';
 import { MANIA_CUP } from '@/lib/mania-cup';
@@ -49,6 +50,10 @@ export default function ManiaCupNav() {
   // l'utilise pas : elle appelle l'API à la main dans un effet.)
   const { firebaseUser, loading: authLoading } = useAuth();
 
+  // Changer de page ferme le menu : sans ça il reste ouvert par-dessus la page
+  // d'arrivée, et il faut appuyer une seconde fois pour voir où l'on a atterri.
+  useEffect(() => { setMenuOuvert(false); }, [pathname]);
+
   const { data } = useQuery({
     queryKey: ['mania-cup', 'register', firebaseUser?.uid ?? 'anon'] as const,
     queryFn: () => apiPublic<Ctx>('/api/mania-cup/register'),
@@ -56,7 +61,11 @@ export default function ManiaCupNav() {
     staleTime: 30_000,
   });
 
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const registered = Boolean(data?.registration);
+  /** Le nom de la page où l'on se trouve — c'est lui que porte le bouton. */
+  const ongletCourant =
+    TABS.find((t) => t.href === pathname)?.label ?? 'Springs Mania Cup';
   const onSpace = pathname === '/mania-cup/inscription';
 
   // Sur la page anglaise, le bouton d'action passe en anglais — c'est le CTA
@@ -86,11 +95,70 @@ export default function ManiaCupNav() {
           </span>
         </Link>
 
-        {/* La piste défile : à 390 px, « Spectateurs » sortait de l'écran sans
-            que rien ne le laisse deviner. Le dégradé à droite dit qu'il y a une
-            suite, et la barre de défilement reste masquée pour ne pas manger
-            de la hauteur. */}
-        <div className="mc-onglets -mx-2 flex min-w-0 flex-1 gap-1 overflow-x-auto px-2">
+        {/* SUR MOBILE : un menu, pas une piste qui défile.
+            Cinq onglets dans 130 px laissaient « Spectateurs » hors de l'écran,
+            et un défilement latéral ne se devine pas — il faut d'abord soupçonner
+            qu'il y a une suite pour aller la chercher. Le bouton porte le nom de
+            la page courante : on sait où on est, et tout le reste tient en un
+            appui. */}
+        <div className="relative min-w-0 flex-1 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOuvert((o) => !o)}
+            aria-expanded={menuOuvert}
+            className="flex w-full items-center justify-between gap-2 py-2 text-sm"
+          >
+            <span className="truncate font-semibold text-white">{ongletCourant}</span>
+            <ChevronDown
+              size={15}
+              className={`shrink-0 transition-transform ${menuOuvert ? 'rotate-180' : ''}`}
+              style={{ color: 'var(--s-text-dim)' }}
+              aria-hidden
+            />
+          </button>
+
+          {menuOuvert && (
+            <>
+              {/* Le voile ferme le menu et empêche d'appuyer à travers. */}
+              <button
+                type="button"
+                aria-label="Fermer le menu"
+                onClick={() => setMenuOuvert(false)}
+                className="fixed inset-0 top-[52px] z-10 cursor-default bg-black/50"
+              />
+              <div className="absolute top-full left-0 z-20 mt-2 w-56 border border-white/15 bg-[#0d0a14] shadow-2xl">
+                {TABS.map((t) => (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    onClick={() => setMenuOuvert(false)}
+                    className={`block border-l-2 px-4 py-3 text-sm transition-colors ${
+                      pathname === t.href
+                        ? 'border-[#00D936] bg-white/[0.04] text-white'
+                        : 'border-transparent text-[#c9c5d8] hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    {t.label}
+                  </Link>
+                ))}
+                {/* La bascule de langue vivait dans une case masquée sous 640 px :
+                    elle n'existait donc pas pour les joueurs européens visés par
+                    l'annonce internationale, c'est-à-dire ceux à qui elle sert. */}
+                <Link
+                  href={en ? '/mania-cup' : '/mania-cup/en'}
+                  hrefLang={en ? 'fr' : 'en'}
+                  onClick={() => setMenuOuvert(false)}
+                  className="flex items-center gap-2 border-t border-white/10 px-4 py-3 text-sm text-[#8d89a8]"
+                >
+                  <Globe size={14} aria-hidden />
+                  {en ? 'Voir en français' : 'Read in English'}
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="mc-onglets -mx-2 hidden min-w-0 flex-1 gap-1 overflow-x-auto px-2 lg:flex">
           {TABS.map((t) => {
             const active = pathname === t.href;
             return (
