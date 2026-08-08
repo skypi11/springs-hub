@@ -38,6 +38,9 @@ type Payload = {
   organizationSlug?: string;
   /** Les formulaires lus : la billetterie, et la boutique quand elle existe. */
   forms?: { type: 'Event' | 'Shop'; slug: string }[];
+  /** Formulaires déclarés que HelloAsso ne connaît pas — presque toujours une
+   *  faute dans le slug de la variable d'environnement. */
+  introuvables?: { type: 'Event' | 'Shop'; slug: string }[];
   tiers?: Tier[];
   tierMap?: string;
   codeField?: string;
@@ -172,6 +175,30 @@ export default function TierMapping() {
             {(data.forms ?? []).map((f) => f.slug).join(', ') || 'aucun formulaire'} ·{' '}
             {tiers.length} tarif{tiers.length > 1 ? 's' : ''}.
           </p>
+
+          {/* Un formulaire déclaré mais introuvable chez HelloAsso ne doit
+              JAMAIS passer pour un formulaire sans tarifs : la boutique reste
+              alors invisible du site — ni webhook, ni relecture, ni ligne dans
+              la console — et rien ne le signale. */}
+          {(data.introuvables ?? []).length > 0 && (
+            <div
+              className="mt-4 border p-4 text-sm"
+              style={{ borderColor: 'rgba(255,184,0,.4)', background: 'rgba(255,184,0,.06)', color: '#f2e6c8' }}
+            >
+              <strong>
+                HelloAsso ne connaît pas{' '}
+                {data.introuvables!.length > 1 ? 'ces formulaires' : 'ce formulaire'} :
+              </strong>{' '}
+              {data.introuvables!.map((f) => f.slug).join(', ')}.
+              <p className="mt-2" style={{ color: 'var(--s-text-dim)' }}>
+                Le slug est celui qui figure à la fin de l’adresse du formulaire, après
+                <code> /evenements/ </code>ou<code> /boutiques/</code>. Tant qu’il est
+                faux, les règlements de ce formulaire sont <strong>ignorés</strong> par
+                le site : ils n’apparaissent ni dans les paiements, ni sur les badges,
+                ni sur la liste d’émargement.
+              </p>
+            </div>
+          )}
 
           {tiers.length === 0 ? (
             <p className="mt-4 text-sm" style={{ color: 'var(--s-text-muted)' }}>

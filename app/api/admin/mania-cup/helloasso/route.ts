@@ -63,12 +63,16 @@ export async function GET(req: NextRequest) {
     const settings = await getManiaCupSettings(db);
 
     if (req.nextUrl.searchParams.get('action') === 'tiers') {
-      const tiers = await fetchFormTiers(db, cfg);
+      const { tiers, introuvables } = await fetchFormTiers(db, cfg);
       return NextResponse.json({
         configured: true,
         organizationSlug: cfg.organizationSlug,
         forms: cfg.forms,
         tiers,
+        // Les formulaires déclarés que HelloAsso ne connaît pas : presque
+        // toujours une faute dans le slug. Le taire faisait passer une
+        // boutique invisible pour une boutique sans tarifs.
+        introuvables,
         tierMap: settings.helloAssoTierMap,
         codeField: settings.helloAssoCodeField,
       });

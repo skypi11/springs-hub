@@ -247,11 +247,25 @@ export interface HelloAssoTier {
  * Un formulaire injoignable n'interrompt pas les autres : la boutique peut être
  * déclarée avant d'exister, ou archivée après l'événement.
  */
+/**
+ * Les tarifs de chaque formulaire déclaré, ET ceux qu'on n'a pas trouvés.
+ *
+ * Un formulaire introuvable (404) était simplement ignoré. L'intention était
+ * bonne — la boutique de location n'existait pas encore, il ne fallait pas
+ * casser l'écran pour autant — mais l'effet est devenu pervers dès qu'un slug
+ * a été déclaré : une FAUTE DE FRAPPE ressemblait alors trait pour trait à
+ * « ce formulaire n'a pas de tarifs ». C'est arrivé le 08/08, avec un slug
+ * amputé de son dernier caractère : l'écran affichait trois tarifs sans le
+ * moindre avertissement, et la boutique restait invisible du site.
+ *
+ * On distingue donc les deux, et l'appelant doit le dire.
+ */
 export async function fetchFormTiers(
   db: Firestore,
   cfg: HelloAssoConfig
-): Promise<HelloAssoTier[]> {
+): Promise<{ tiers: HelloAssoTier[]; introuvables: HelloAssoForm[] }> {
   const out: HelloAssoTier[] = [];
+  const introuvables: HelloAssoForm[] = [];
   for (const form of cfg.forms) {
     try {
       const res = await apiFetch<{ tiers?: { id?: number; label?: string; price?: number }[] }>(
@@ -269,9 +283,12 @@ export async function fetchFormTiers(
         });
       }
     } catch (err) {
-      if (err instanceof HelloAssoError && err.status === 404) continue;
+      if (err instanceof HelloAssoError && err.status === 404) {
+        introuvables.push(form);
+        continue;
+      }
       throw err;
     }
   }
-  return out;
+  return { tiers: out, introuvables };
 }
