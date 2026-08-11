@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyUid } from '@/lib/user-slug';
 import JsonLd from '@/components/seo/JsonLd';
@@ -30,7 +31,19 @@ const EMPTY: ProfilePublicData = {
   found: false,
 };
 
-async function loadProfile(id: string): Promise<ProfilePublicData> {
+/**
+ * ⚠️ ENVELOPPÉ DANS `cache()` — ET CE N'EST PAS DÉCORATIF.
+ *
+ * Cette fonction est appelée DEUX FOIS par affichage de page : une fois par
+ * `generateMetadata`, une fois par le layout lui-même. Sans mémoïsation, c'était
+ * donc deux lectures Firestore identiques à chaque visite (constaté le
+ * 11/08/2026 en cherchant d'où venait la consommation processeur du site).
+ *
+ * `cache()` de React mémoïse pour la DURÉE D'UNE REQUÊTE : les deux appels
+ * partagent désormais un seul aller-retour, et rien n'est conservé d'une visite
+ * à l'autre — aucun risque de servir le profil d'un joueur à la place d'un autre.
+ */
+const loadProfile = cache(async function loadProfile(id: string): Promise<ProfilePublicData> {
   try {
     const db = getAdminDb();
     let userData: FirebaseFirestore.DocumentData | null = null;
@@ -62,6 +75,46 @@ async function loadProfile(id: string): Promise<ProfilePublicData> {
     console.warn('[profile metadata] fetch error', err);
     return EMPTY;
   }
+});
+
+/**
+ * La page se met en cache, et c'est sans conséquence visible.
+ *
+ * Ce layout ne rend QUE des métadonnées (titre, description, image de partage)
+ * et du JSON-LD. La page elle-même est un composant client : tout ce que le
+ * joueur lit — pseudo, bio, rangs, équipes — est chargé par l'API après
+ * affichage. **Le HTML produit ici ne contient donc aucune donnée de visiteur**,
+ * et le mettre en cache ne peut pas montrer le profil de l'un à un autre.
+ *
+ * Sans cette ligne, la lecture Firestore ci-dessus interdit à Next.js de
+ * pré-rendre : chaque visite, chaque passage de robot d'indexation payait un
+ * rendu serveur complet. `/profile/[id]` était de loin la route la plus
+ * coûteuse du site (mesuré le 11/08 : 20 invocations, plus que toutes les
+ * routes d'API réunies).
+ *
+ * 15 minutes : assez long pour absorber les rafales de robots, assez court pour
+ * qu'un joueur qui vient de changer son pseudo retrouve un partage Discord à
+ * jour rapidement. Un changement de profil reste visible IMMÉDIATEMENT sur le
+ * site — seules les métadonnées attendent.
+ */
+export const revalidate = 900;
+
+/**
+ * Liste VIDE, et c'est volontaire : on ne pré-génère aucun profil au build.
+ *
+ * Sans cette fonction, Next.js traite une route à paramètre comme entièrement
+ * dynamique et **ignore le `revalidate` ci-dessus** — vérifié le 11/08/2026 en
+ * lisant l'en-tête de réponse en local, qui sortait en `no-cache, no-store`
+ * malgré le réglage. La déclarer, même vide, fait basculer la route en cache à
+ * la demande : le premier visiteur d'un profil paie le rendu, les suivants sont
+ * servis depuis le cache pendant 15 minutes.
+ *
+ * On ne pré-génère pas la liste des profils au build parce qu'elle changerait à
+ * chaque inscription : il faudrait recompiler le site pour qu'un nouveau joueur
+ * ait une page.
+ */
+export async function generateStaticParams() {
+  return [];
 }
 
 // Metadata SEO dynamique pour les pages publiques de profil joueur.

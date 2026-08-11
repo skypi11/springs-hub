@@ -9,7 +9,6 @@ import QueryProvider from '@/components/providers/QueryProvider';
 import CommandPalette from '@/components/ui/CommandPalette';
 import ProfileCompletionGate from '@/components/auth/ProfileCompletionGate';
 import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Suspense } from 'react';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import AuthErrorBanner from '@/components/auth/AuthErrorBanner';
@@ -136,9 +135,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Suspense>
           </AuthProvider>
         </QueryProvider>
-        {/* Vercel, fréquentation (Analytics) et perfs réelles (Speed Insights) */}
+        {/* Fréquentation Vercel — incluse dans le plan, on la garde.
+
+            Speed Insights a été RETIRÉ le 11/08/2026 : le module est désactivé
+            côté Vercel (il devenait facturé 10 $/mois au passage en Pro, pour un
+            outil qu'on n'ouvrait jamais). Laisser le composant en place ferait
+            charger son script et envoyer une mesure chez CHAQUE visiteur, pour
+            des données que plus personne ne collecte.
+
+            Pour le réactiver : remettre <SpeedInsights /> ici ET réactiver le
+            module dans les réglages du projet Vercel — l'un sans l'autre ne sert
+            à rien. Le paquet reste dans package.json exprès. */}
         <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );

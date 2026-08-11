@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { permanentRedirect } from 'next/navigation';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLegacyStructureId } from '@/lib/structure-slug';
@@ -47,7 +48,14 @@ const EMPTY: StructurePublicData = {
 //
 // Si la structure n'est pas active (pending / suspended / rejected / deletion_scheduled),
 // on retombe sur EMPTY pour ne pas exposer de metadata SEO publique.
-async function loadStructure(idOrSlug: string): Promise<StructurePublicData> {
+//
+// ⚠️ ENVELOPPÉ DANS `cache()`. Le commentaire ci-dessus annonçait « on les
+// fetche une fois puis le layout les ré-utilise » — c'était l'intention, pas le
+// comportement : sans mémoïsation, `generateMetadata` et le rendu du layout
+// faisaient DEUX lectures Firestore identiques par visite. `cache()` de React
+// mémoïse le temps d'UNE requête, donc les deux appels partagent un seul
+// aller-retour et rien ne fuit d'un visiteur à l'autre.
+const loadStructure = cache(async function loadStructure(idOrSlug: string): Promise<StructurePublicData> {
   try {
     const db = getAdminDb();
     let docId = '';
@@ -105,6 +113,26 @@ async function loadStructure(idOrSlug: string): Promise<StructurePublicData> {
     console.warn('[structure metadata] fetch error', err);
     return EMPTY;
   }
+});
+
+/**
+ * Même raisonnement que pour `/profile/[id]` : ce layout ne rend que des
+ * métadonnées et du JSON-LD, la page est un composant client qui charge tout
+ * par l'API. Le HTML mis en cache ne contient donc rien qui dépende du
+ * visiteur.
+ *
+ * La redirection 308 vers l'URL canonique reste correcte en cache : elle ne
+ * dépend que de l'identifiant demandé, pas de qui demande.
+ *
+ * Deuxième route la plus coûteuse du site avant ce changement (14 invocations
+ * mesurées le 11/08, juste derrière les profils).
+ */
+export const revalidate = 900;
+
+/** Voir `app/profile/[id]/layout.tsx` : sans cette liste — même vide — Next.js
+ *  ignore le `revalidate` sur une route à paramètre et ne cache rien. */
+export async function generateStaticParams() {
+  return [];
 }
 
 // Helper interne : construit le chemin canonique d'une structure.
