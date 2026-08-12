@@ -1,7 +1,12 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createNotification } from '@/lib/notifications';
-import { alerterPlacePrise, donnerRoleInscrit, retirerRoleInscrit } from '@/lib/mania-cup-alerts';
+import {
+  alerterPlacePrise,
+  donnerRoleInscrit,
+  estDossierDeTest,
+  retirerRoleInscrit,
+} from '@/lib/mania-cup-alerts';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { sendManiaCupDM } from '@/lib/discord-bot';
 import {
@@ -150,9 +155,24 @@ export async function applyOrderItem(
 
   const changed = await writeOutcome(db, item, outcome, opts);
 
+  // Les données de test ne réveillent personne.
+  //
+  // La base Firestore est partagée entre le développement et la production : les
+  // scripts de bout en bout déposent donc de vraies inscriptions et de vrais
+  // règlements, qu'ils nettoient ensuite. Mais une notification et un message
+  // Discord, eux, ne se nettoient pas — le 12 août, six lignes « E2E_p1 a déposé
+  // son inscription » sont arrivées dans le salon de Springs.
+  //
+  // Deux marqueurs, tous deux sûrs : `users.isDev`, la convention du dépôt pour
+  // les données fictives, et le domaine `.invalid` — réservé par la RFC 2606
+  // précisément pour cet usage, donc jamais l'adresse d'un vrai payeur.
+  const estTest =
+    (await estDossierDeTest(db, uid ?? undefined).catch(() => false)) ||
+    item.payerEmail.trim().toLowerCase().endsWith('.invalid');
+
   // Le joueur est prévenu APRÈS l'écriture, et seulement si quelque chose a
   // changé : un rejeu de notification ne doit pas lui renvoyer un message.
-  if (changed && outcome.kind === 'confirm_player') {
+  if (changed && !estTest && outcome.kind === 'confirm_player') {
     await notifyPlayerPaid(db, outcome.uid, item).catch(() => {});
     // L'ORGANISATION apprend qu'une place vient de partir, et le joueur reçoit
     // son rôle sur le Discord de Springs. Ni l'un ni l'autre ne doit faire
@@ -164,7 +184,7 @@ export async function applyOrderItem(
 
   // Un règlement encaissé qu'on ne sait pas rattacher ne doit jamais rester
   // silencieux : c'est de l'argent reçu contre une place non confirmée.
-  if (changed && (outcome.kind === 'unmatched' || outcome.kind === 'needs_review')) {
+  if (changed && !estTest && (outcome.kind === 'unmatched' || outcome.kind === 'needs_review')) {
     await notifyStaffOfOrphanPayment(db, item, outcome).catch(() => {});
   }
 
@@ -173,7 +193,7 @@ export async function applyOrderItem(
   // pas qu'un siège repartait à la vente, et le rôle « inscrit » restait sur le
   // Discord de Springs. Or « annulé » chez HelloAsso ne prouve même pas que
   // l'argent est reparti — un remboursement peut avoir échoué.
-  if (changed && outcome.kind === 'revoke') {
+  if (changed && !estTest && outcome.kind === 'revoke') {
     await notifyRevoked(db, outcome, item).catch(() => {});
     // Le rôle suit la PLACE : une location ou un billet accompagnant défait ne
     // change rien à la présence du joueur.
@@ -637,6 +657,7 @@ async function alerterPlacePriseDepuisPaiement(db: Firestore, uid: string): Prom
   const reg = snap.data() as ManiaCupRegistration | undefined;
   await alerterPlacePrise(db, {
     qui: reg?.tmDisplayName || `${reg?.firstName ?? ''} ${reg?.lastName ?? ''}`.trim() || uid,
+    uid,
     placesReglees: reglees.data().count,
     placesTotales: settings.maxPlayers,
   });

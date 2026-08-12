@@ -421,6 +421,7 @@ export async function POST(req: NextRequest) {
     if (!prev) {
       void alerterDossierDepose(db, {
         qui: (payload.tmDisplayName as string) || `${firstName} ${lastName}`.trim() || uid,
+        uid,
       }).catch(() => {});
     }
 

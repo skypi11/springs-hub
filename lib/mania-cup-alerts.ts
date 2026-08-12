@@ -48,6 +48,26 @@ async function posterDansSalon(
   return { ok: true };
 }
 
+/**
+ * Ce dossier est-il un dossier de TEST ?
+ *
+ * La base Firestore est partagée entre le développement et la production : les
+ * scripts de bout en bout déposent donc de vraies inscriptions, qu'ils nettoient
+ * ensuite. Mais un message Discord, lui, ne se nettoie pas — et le 12 août, six
+ * lignes « E2E_p1 a déposé son inscription » sont arrivées dans le salon
+ * d'inscription de Springs, sous les yeux de tout le staff.
+ *
+ * `isDev` est la convention du dépôt pour les données fictives (bac à sable des
+ * compétitions, messages ciblés, rappels quotidiens). Elle s'applique désormais
+ * aussi ici. Une lecture par alerte : c'est un événement rare, et le prix d'une
+ * fausse alerte au staff est bien plus élevé.
+ */
+export async function estDossierDeTest(db: Firestore, uid: string | undefined): Promise<boolean> {
+  if (!uid) return false;
+  const snap = await db.collection('users').doc(uid).get().catch(() => null);
+  return snap?.data()?.isDev === true;
+}
+
 /** Prévient tous les administrateurs Aedral, sur le site. */
 async function prevenirLesAdmins(
   db: Firestore,
@@ -71,6 +91,8 @@ async function prevenirLesAdmins(
 export type EvenementInscription = {
   /** Pseudo Trackmania, ou à défaut l'identité civile. */
   qui: string;
+  /** Le dossier concerné. Sert à taire les alertes des comptes de test. */
+  uid?: string;
   /** Places réglées après l'événement, et total. */
   placesReglees?: number;
   placesTotales?: number;
@@ -81,6 +103,7 @@ export async function alerterDossierDepose(
   db: Firestore,
   e: EvenementInscription
 ): Promise<void> {
+  if (await estDossierDeTest(db, e.uid)) return;
   const titre = 'Mania Cup — nouveau dossier';
   const message = `${e.qui} vient de déposer son inscription. En attente de règlement.`;
   await prevenirLesAdmins(db, { titre, message });
@@ -97,6 +120,7 @@ export async function alerterPlacePrise(
   db: Firestore,
   e: EvenementInscription
 ): Promise<void> {
+  if (await estDossierDeTest(db, e.uid)) return;
   const jauge =
     e.placesReglees != null && e.placesTotales != null
       ? ` ${e.placesReglees}/${e.placesTotales} places réglées.`
@@ -134,6 +158,8 @@ export async function donnerRoleInscrit(
   db: Firestore,
   uid: string
 ): Promise<ResultatRole> {
+  // Un compte de test n'a rien à faire sur le vrai serveur de Springs.
+  if (await estDossierDeTest(db, uid)) return { ok: false, raison: 'pas_de_discord' };
   const { participantRoleId } = await getManiaCupSettings(db);
   if (!participantRoleId) return { ok: false, raison: 'role_non_configure' };
 
