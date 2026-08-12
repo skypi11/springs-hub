@@ -33,6 +33,9 @@ export type NotificationType =
   /** Destinée à l'organisation, pas au joueur : un règlement est encaissé mais
    *  la place n'a pas pu être confirmée. */
   | 'mania_cup_payment_orphan'
+  /** Pour le joueur : son règlement n'est plus valide chez HelloAsso (commande
+   *  annulée, remboursée, ou paiement refusé) — sa place repart à la vente. */
+  | 'mania_cup_payment_revoked'
   | 'mania_cup_waitlist_invited'
   | 'mania_cup_registration'
   | 'generic';

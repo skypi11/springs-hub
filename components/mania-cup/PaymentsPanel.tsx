@@ -9,6 +9,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import { suggestRegistrationCodes } from '@/lib/mania-cup';
 import { TICKET_LABELS } from '@/lib/helloasso/types';
+import { dateCourte } from './RegistrationRow';
 
 // La caisse : ce que HelloAsso a encaissé, et ce qui n'a pas trouvé son dossier.
 //
@@ -25,7 +26,7 @@ import { TICKET_LABELS } from '@/lib/helloasso/types';
 // trancher : deux codes peuvent être voisins, et confirmer d'autorité
 // créditerait un joueur du règlement d'un autre.
 
-type Payment = {
+export type Payment = {
   itemId: number;
   orderId: number;
   ticket: string | null;
@@ -41,6 +42,43 @@ type Payment = {
   outcome: string;
   reason: string | null;
   source: string;
+  /** Motif en clair quand l'argent est reparti — vient de l'état du PAIEMENT. */
+  moneyBack?: string | null;
+  receivedAt?: { _seconds: number } | null;
+  updatedAt?: { _seconds: number } | null;
+};
+
+/** Ce qu'une ligne de caisse vaut réellement, en un mot.
+ *
+ *  L'écran ne connaissait que deux verdicts : « à traiter » et « rattaché ».
+ *  Tout le reste tombait dans le second — un règlement annulé ou remboursé
+ *  s'affichait donc en VERT, avec la mention « Payé par », alors que l'argent
+ *  était reparti. */
+function verdictDe(p: Payment): { texte: string; ton: 'gold' | 'green' | 'neutral' } {
+  if (p.outcome === 'unmatched' || p.outcome === 'needs_review') {
+    return { texte: 'à traiter', ton: 'gold' };
+  }
+  if (p.moneyBack) return { texte: p.moneyBack, ton: 'neutral' };
+  if (p.outcome === 'revoke' || p.state === 'Canceled' || p.state === 'Refused') {
+    return { texte: 'annulé', ton: 'neutral' };
+  }
+  if (p.outcome === 'ignore' || p.outcome === 'spectator') {
+    return { texte: 'sans effet', ton: 'neutral' };
+  }
+  return { texte: 'rattaché', ton: 'green' };
+}
+
+/** L'état HelloAsso en français. La console affichait « CANCELED ». */
+const ETATS_FR: Record<string, string> = {
+  Processed: 'encaissé',
+  Registered: 'enregistré à la main',
+  Canceled: 'annulé',
+  Refused: 'refusé',
+  Refunded: 'remboursé',
+  Waiting: 'en attente d’autorisation',
+  Abandoned: 'abandonné',
+  Deleted: 'supprimé',
+  Unknown: 'état inconnu',
 };
 
 type Payload = {
@@ -158,7 +196,7 @@ export default function PaymentsPanel({ targets }: { targets: MatchTarget[] }) {
             {data.truncated && (
               <>
                 {' · '}
-                {data.shown} affichés, les plus récents
+                {data.shown} affichés, les derniers mouvements
               </>
             )}
           </p>
@@ -195,13 +233,25 @@ export default function PaymentsPanel({ targets }: { targets: MatchTarget[] }) {
 
       {payments.length === 0 ? (
         <div className="panel bevel">
-          <div className="panel-body flex items-center gap-3">
+          <div className="panel-body flex flex-wrap items-center gap-3">
             <CheckCircle2 size={18} style={{ color: 'var(--s-green)' }} aria-hidden />
             <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>
               {onlyProblems
                 ? 'Aucun règlement en attente de décision.'
                 : 'Aucun règlement enregistré pour le moment.'}
             </span>
+            {/* Sans cette porte de sortie, l'écran répondait « rien à traiter »
+                et masquait la caisse entière : un règlement remboursé, qui ne
+                demande plus de décision, semblait avoir disparu du site. */}
+            {onlyProblems && counts.total > 0 && (
+              <button
+                onClick={() => setOnlyProblems(false)}
+                className="text-sm underline"
+                style={{ color: 'var(--s-text-dim)' }}
+              >
+                Voir toute la caisse ({counts.total})
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -221,7 +271,7 @@ export default function PaymentsPanel({ targets }: { targets: MatchTarget[] }) {
   );
 }
 
-function PaymentRow({
+export function PaymentRow({
   payment,
   targets,
   onMatch,
@@ -255,6 +305,13 @@ function PaymentRow({
   const categorie = payment.ticket
     ? (TICKET_LABELS[payment.ticket as keyof typeof TICKET_LABELS] ?? null)
     : null;
+  const verdict = verdictDe(payment);
+  const etatFr = ETATS_FR[payment.state] ?? payment.state;
+  const argentReparti =
+    Boolean(payment.moneyBack) ||
+    payment.state === 'Canceled' ||
+    payment.state === 'Refused' ||
+    payment.state === 'Refunded';
 
   return (
     <div className="panel bevel">
@@ -270,13 +327,19 @@ function PaymentRow({
               <span className="t-mono" style={{ color: 'var(--s-text-dim)' }}>
                 {euros(payment.amountCents)}
               </span>
-              {payment.state !== 'Processed' && (
-                <span className="tag tag-neutral">{payment.state}</span>
+              {/* L'état brut n'a sa place que s'il dit autre chose que le
+                  verdict affiché à droite : « annulé » deux fois sur la même
+                  carte n'apprend rien. */}
+              {payment.state !== 'Processed' && etatFr !== verdict.texte && (
+                <span className="tag tag-neutral">{etatFr}</span>
               )}
             </div>
 
             <p className="mt-2 text-sm" style={{ color: 'var(--s-text-dim)' }}>
-              Payé par <strong style={{ color: 'var(--s-text)' }}>{payment.payerName || '—'}</strong>
+              {/* « Payé par » sur une ligne remboursée disait le contraire de
+                  la vérité : l'argent est reparti chez le payeur. */}
+              {argentReparti ? 'Réglé par' : 'Payé par'}{' '}
+              <strong style={{ color: 'var(--s-text)' }}>{payment.payerName || '—'}</strong>
               {payment.payerEmail && ` · ${payment.payerEmail}`}
               {payment.participantName && payment.participantName !== payment.payerName && (
                 <> · au nom de {payment.participantName}</>
@@ -292,19 +355,35 @@ function PaymentRow({
               )}
               {' · commande '}
               {payment.orderId}
+              {/* La date manquait : devant une ligne annulée, l'organisation ne
+                  pouvait pas dire si le remboursement datait d'hier ou du mois
+                  dernier — donc pas non plus si elle l'avait déjà traité. */}
+              {payment.receivedAt?._seconds != null && (
+                <> · reçu le {dateCourte(payment.receivedAt)}</>
+              )}
+              {argentReparti && payment.updatedAt?._seconds != null && (
+                <> · {verdict.texte} le {dateCourte(payment.updatedAt)}</>
+              )}
             </p>
           </div>
 
           <div className="shrink-0">
-            {needsDecision ? (
-              <span className="tag tag-gold inline-flex items-center gap-1.5">
-                <AlertTriangle size={12} aria-hidden /> à traiter
-              </span>
-            ) : (
-              <span className="tag tag-green inline-flex items-center gap-1.5">
-                <CheckCircle2 size={12} aria-hidden /> rattaché
-              </span>
-            )}
+            <span
+              className={`tag inline-flex items-center gap-1.5 ${
+                verdict.ton === 'gold'
+                  ? 'tag-gold'
+                  : verdict.ton === 'green'
+                    ? 'tag-green'
+                    : 'tag-neutral'
+              }`}
+            >
+              {verdict.ton === 'gold' ? (
+                <AlertTriangle size={12} aria-hidden />
+              ) : verdict.ton === 'green' ? (
+                <CheckCircle2 size={12} aria-hidden />
+              ) : null}
+              {verdict.texte}
+            </span>
           </div>
         </div>
 

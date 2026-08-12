@@ -30,6 +30,14 @@ export interface OrderItemView {
   type: string;
   amountCents: number;
   state: string;
+  /**
+   * L'argent de cette ligne est-il reparti ? Porte alors le motif en clair
+   * (« remboursé », « contesté auprès de la banque »…), sinon null.
+   *
+   * Vient de l'état du PAIEMENT, pas de celui de la ligne : un remboursement
+   * fait sans annuler la commande laisse la ligne à `Processed`.
+   */
+  moneyBack?: string | null;
   /** Réponse brute au champ « code d'inscription », telle que saisie. */
   rawCode: string | null;
   /** Le même code remis en forme, ou null s'il est illisible. */
@@ -119,6 +127,45 @@ export interface ParseOptions {
   codeFieldLabel: string;
 }
 
+/**
+ * Les états de PAIEMENT qui disent que l'argent n'est plus acquis.
+ *
+ * Aucun ne se déduit de l'état de la ligne : `cancelOrder` valant false par
+ * défaut sur l'API de remboursement, une ligne peut rester `Processed` alors
+ * que son règlement est reparti.
+ */
+const MONEY_BACK_STATES: Record<string, string> = {
+  Refunded: 'remboursé',
+  Refunding: 'en cours de remboursement',
+  Contested: 'contesté auprès de la banque',
+};
+
+/**
+ * L'argent de CETTE ligne est-il reparti, ou en train de partir ?
+ *
+ * On n'accuse que sur pièce : un paiement n'incrimine une ligne que s'il la
+ * couvre — soit parce qu'il l'énumère dans sa ventilation, soit, à défaut de
+ * ventilation, parce qu'il est le seul règlement d'une commande à une ligne.
+ * Sans cette précaution, rembourser la location d'un joueur ferait sauter sa
+ * place dans la foulée.
+ */
+function moneyBackFor(order: HelloAssoOrder, itemId: number): string | null {
+  const items = order.items ?? [];
+  for (const p of order.payments ?? []) {
+    const label = MONEY_BACK_STATES[String(p.state ?? '')];
+    if (!label) continue;
+
+    const ventile = p.items ?? [];
+    if (ventile.length > 0) {
+      if (ventile.some((s) => Number(s.id ?? 0) === itemId)) return label;
+      continue;
+    }
+    // Pas de ventilation : on ne peut trancher que si le doute n'existe pas.
+    if (items.length <= 1) return label;
+  }
+  return null;
+}
+
 /** Met une commande à plat, ligne par ligne. */
 export function parseOrder(order: HelloAssoOrder, opts: ParseOptions): OrderItemView[] {
   const orderId = Number(order.id ?? 0);
@@ -127,14 +174,16 @@ export function parseOrder(order: HelloAssoOrder, opts: ParseOptions): OrderItem
 
   return (order.items ?? []).map((item) => {
     const rawCode = extractCode(item, opts.codeFieldLabel);
+    const itemId = Number(item.id ?? 0);
     return {
       orderId,
-      itemId: Number(item.id ?? 0),
+      itemId,
       ticket: classifyTier(item, opts.tiers),
       tierLabel: item.name ?? item.tierDescription ?? '',
       type: item.type ?? '',
       amountCents: Number(item.amount ?? 0),
       state: String(item.state ?? 'Unknown'),
+      moneyBack: moneyBackFor(order, itemId),
       rawCode,
       code: normalizeRegistrationCode(rawCode),
       participantName: [item.user?.firstName, item.user?.lastName]
@@ -161,8 +210,20 @@ export function isItemValid(state: string): boolean {
 
 /** Une ligne annulée ou remboursée, qui doit défaire ce qu'elle avait produit. */
 export function isItemVoided(state: string): boolean {
-  return state === 'Canceled' || state === 'Refused';
+  return VOIDED_STATES.has(state);
 }
+
+const VOIDED_STATES = new Set(['Canceled', 'Refused', 'Refunded', 'Deleted']);
+
+/**
+ * Les états qui ne valent rien ENCORE, et n'ont donc rien à défaire.
+ *
+ * Un panier abandonné ou un paiement en cours d'autorisation n'a jamais acquis
+ * de place. Tout ce qui ne figure ni ici, ni dans les valides, ni dans les
+ * défaits est un état que nous ne connaissons pas — et un état inconnu sur un
+ * règlement qui tient une place doit réveiller quelqu'un, pas se taire.
+ */
+const PENDING_STATES = new Set(['Waiting', 'Pending', 'Abandoned', 'Unknown', 'Unknow']);
 
 /**
  * Cette ligne est-elle un don plutôt qu'un billet ?
@@ -270,6 +331,8 @@ export interface RegistrationSnapshot {
   status: RegistrationStatus;
   /** Identifiant de la ligne qui a déjà réglé cette inscription, s'il y en a. */
   paidByItemId?: number | null;
+  /** Montant réellement encaissé pour cette place, en centimes. */
+  paidAmountCents?: number | null;
   /** Ligne qui a réglé la location de poste, s'il y en a une. */
   pcRentalItemId?: number | null;
   /** Lignes qui ont réglé les billets accompagnants. */
@@ -308,6 +371,45 @@ export interface DecideContext {
 }
 
 /**
+ * Cette ligne a-t-elle inscrit quelque chose sur le dossier ?
+ *
+ * Le rapprochement se fait toujours sur l'identifiant de la ligne, jamais sur
+ * son type seul : un joueur qui a re-payé ne doit pas voir sa place défaite par
+ * l'ancien règlement.
+ */
+function tientUnEffet(item: OrderItemView, reg: RegistrationSnapshot | null): boolean {
+  if (!reg) return false;
+  if (item.ticket === 'player') return reg.paidByItemId === item.itemId;
+  if (item.ticket === 'pc_rental') return reg.pcRentalItemId === item.itemId;
+  if (item.ticket === 'companion') return (reg.companionItemIds ?? []).includes(item.itemId);
+  return false;
+}
+
+/** L'issue qui défait ce que cette ligne avait produit, ou null s'il n'y a rien. */
+function defaireCeQueLaLigneAProduit(
+  item: OrderItemView,
+  reg: RegistrationSnapshot | null,
+  reason: string
+): Outcome | null {
+  if (!reg || !tientUnEffet(item, reg)) return null;
+
+  if (item.ticket === 'player') {
+    // Le dossier a déjà été retiré par l'organisation : la place est rendue, il
+    // n'y a rien à défaire. Le repasser en « attente de paiement » le ferait
+    // réapparaître dans la liste publique des inscrits et proposerait au joueur
+    // de repayer une place qu'on vient de lui reprendre.
+    if (reg.status === 'cancelled') {
+      return { kind: 'ignore', reason: 'Inscription déjà retirée — rien à défaire' };
+    }
+    return { kind: 'revoke', uid: reg.uid, reason, what: 'player' };
+  }
+  if (item.ticket === 'pc_rental') {
+    return { kind: 'revoke', uid: reg.uid, reason, what: 'pc_rental' };
+  }
+  return { kind: 'revoke', uid: reg.uid, reason, what: 'companion' };
+}
+
+/**
  * Que faire de cette ligne de commande ?
  *
  * La fonction ne décide jamais « au mieux » : chaque situation ambiguë a sa
@@ -319,28 +421,58 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
   // mais seulement si elles avaient bien produit quelque chose.
   if (isItemVoided(item.state)) {
     const reason =
-      item.state === 'Refused' ? 'Paiement refusé' : 'Commande annulée ou remboursée';
-    const reg = ctx.registration;
-    if (reg) {
-      // On ne défait que ce que CETTE ligne avait produit : le rapprochement se
-      // fait sur son identifiant, jamais sur son type seul. Un joueur qui a
-      // re-payé garde sa place, et son ancien règlement remboursé ne la reprend
-      // pas au passage.
-      if (item.ticket === 'player' && reg.paidByItemId === item.itemId) {
-        return { kind: 'revoke', uid: reg.uid, reason, what: 'player' };
-      }
-      if (item.ticket === 'pc_rental' && reg.pcRentalItemId === item.itemId) {
-        return { kind: 'revoke', uid: reg.uid, reason, what: 'pc_rental' };
-      }
-      if (item.ticket === 'companion' && (reg.companionItemIds ?? []).includes(item.itemId)) {
-        return { kind: 'revoke', uid: reg.uid, reason, what: 'companion' };
-      }
-    }
+      item.state === 'Refused'
+        ? 'Paiement refusé'
+        : item.state === 'Refunded'
+          ? 'Ligne remboursée'
+          : 'Commande annulée ou remboursée';
+    const defait = defaireCeQueLaLigneAProduit(item, ctx.registration, reason);
+    if (defait) return defait;
     return { kind: 'ignore', reason: `Ligne ${item.state.toLowerCase()}` };
   }
 
+  // L'argent est reparti, mais la LIGNE, elle, est restée valide.
+  //
+  // C'est le cas d'un remboursement fait sans annuler la commande — le défaut de
+  // l'API HelloAsso (`cancelOrder: false`). Sans cette porte, la ligne repassait
+  // en « paiement conforme » et la place restait vendue à quelqu'un qui a été
+  // remboursé : sur 64 sièges avec liste d'attente, c'est une place perdue.
+  //
+  // On ALERTE, on ne révoque pas : un remboursement peut être partiel, une
+  // contestation peut être levée, et retirer une place à un joueur sur une
+  // déduction serait pire que le mal. L'organisation tranche depuis la console,
+  // prévenue par notification et par message privé.
+  //
+  // La porte s'ouvre que la ligne ait déjà produit son effet ou non : confirmer
+  // une place avec de l'argent qui vient d'être rendu serait aussi faux que la
+  // laisser occupée. Seul le billet spectateur en est dispensé — il ne prend
+  // aucun siège de joueur.
+  if (item.moneyBack && item.ticket && item.ticket !== 'spectator') {
+    return {
+      kind: 'needs_review',
+      reason:
+        `Règlement ${item.moneyBack} alors que la ligne est toujours valide — ` +
+        `vérifier la commande ${item.orderId} chez HelloAsso, puis retirer la place ` +
+        `ou la confirmation depuis ce dossier.`,
+    };
+  }
+
   if (!isItemValid(item.state)) {
-    return { kind: 'ignore', reason: 'Paiement en cours d’autorisation' };
+    // Un état d'attente connu n'a jamais rien acquis : rien à défaire, rien à
+    // signaler. Tout le reste est un état que nous ne connaissons pas — et il ne
+    // doit disparaître en silence que s'il ne tient rien.
+    if (PENDING_STATES.has(item.state)) {
+      return { kind: 'ignore', reason: 'Paiement en cours d’autorisation' };
+    }
+    if (tientUnEffet(item, ctx.registration)) {
+      return {
+        kind: 'needs_review',
+        reason:
+          `État HelloAsso inattendu (« ${item.state} ») sur un règlement qui tient ` +
+          `une place — vérifier la commande ${item.orderId}.`,
+      };
+    }
+    return { kind: 'ignore', reason: `Ligne à l’état « ${item.state} », sans effet` };
   }
 
   // Un don à l'association, ou la contribution volontaire au fonctionnement de
@@ -400,6 +532,31 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
     // rendrait une place que la liste d'attente a peut-être déjà reprise :
     // c'est un remboursement ou une réinscription, donc une décision humaine.
     return { kind: 'needs_review', reason: 'Règlement reçu pour une inscription retirée' };
+  }
+
+  if (registration.status === 'confirmed' && registration.paidByItemId === item.itemId) {
+    // Cette ligne a DÉJÀ acquis la place. Ce qu'on relit ne se compare plus au
+    // tarif affiché aujourd'hui : relever le prix en cours de route
+    // rebasculerait sinon toute la caisse encaissée en « montant inattendu »,
+    // effacerait son rattachement du journal, et enverrait une notification plus
+    // un message privé à chaque administrateur POUR CHAQUE règlement — jusqu'à
+    // noyer la seule alerte qui comptait.
+    //
+    // Le montant garde quand même son sens : comparé à ce qui a réellement été
+    // encaissé, il révèle un remboursement partiel survenu après coup.
+    if (
+      registration.paidAmountCents != null &&
+      item.amountCents !== registration.paidAmountCents
+    ) {
+      return {
+        kind: 'needs_review',
+        reason:
+          `Montant modifié depuis l’encaissement : ${(item.amountCents / 100).toFixed(2)} € ` +
+          `au lieu des ${(registration.paidAmountCents / 100).toFixed(2)} € encaissés — ` +
+          `remboursement partiel probable.`,
+      };
+    }
+    return { kind: 'confirm_player', uid: registration.uid };
   }
 
   if (ctx.expectedAmountCents != null && item.amountCents !== ctx.expectedAmountCents) {

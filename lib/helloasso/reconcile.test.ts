@@ -120,6 +120,88 @@ describe('extractCode', () => {
   });
 });
 
+describe('parseOrder — l’état de l’ARGENT, pas seulement celui de la ligne', () => {
+  // Chez HelloAsso, rembourser sans cocher l'annulation de commande laisse la
+  // ligne à 'Processed' : seul le PAIEMENT passe à 'Refunded'. C'est le défaut
+  // de leur API (`cancelOrder: false`), donc le cas le plus probable le jour où
+  // un joueur se désistera.
+  const rentalItem = { id: 6001, amount: 9000, name: 'Location PC', tierId: 105, state: 'Processed' };
+
+  it('signale la ligne que le paiement remboursé désigne', () => {
+    const [item] = parseOrder(
+      order({
+        items: [playerItem()],
+        payments: [{ id: 1, state: 'Refunded', amount: 3000, items: [{ id: 5001 }] }],
+      }),
+      OPTS
+    );
+    expect(item.moneyBack).toBe('remboursé');
+  });
+
+  it('ne condamne PAS le reste du panier', () => {
+    // Un joueur règle sa place ET loue un poste dans la même commande, puis se
+    // fait rembourser la location seule. Sa place ne doit pas sauter avec.
+    const items = parseOrder(
+      order({
+        items: [playerItem(), rentalItem],
+        payments: [
+          { id: 1, state: 'Authorized', amount: 3000, items: [{ id: 5001 }] },
+          { id: 2, state: 'Refunded', amount: 9000, items: [{ id: 6001 }] },
+        ],
+      }),
+      OPTS
+    );
+    expect(items.find((i) => i.itemId === 5001)?.moneyBack).toBeNull();
+    expect(items.find((i) => i.itemId === 6001)?.moneyBack).toBe('remboursé');
+  });
+
+  it('n’accuse pas au hasard quand la ventilation manque', () => {
+    // Sans ventilation, un remboursement sur une commande à deux lignes ne dit
+    // pas laquelle est concernée : on se tait plutôt que de désigner la mauvaise.
+    const items = parseOrder(
+      order({ items: [playerItem(), rentalItem], payments: [{ id: 1, state: 'Refunded' }] }),
+      OPTS
+    );
+    expect(items.every((i) => i.moneyBack == null)).toBe(true);
+  });
+
+  it('tranche quand même si la commande n’a qu’une ligne', () => {
+    const [item] = parseOrder(
+      order({ items: [playerItem()], payments: [{ id: 1, state: 'Refunded' }] }),
+      OPTS
+    );
+    expect(item.moneyBack).toBe('remboursé');
+  });
+
+  it('reconnaît un remboursement en cours et une contestation', () => {
+    const [enCours] = parseOrder(
+      order({ items: [playerItem()], payments: [{ state: 'Refunding' }] }),
+      OPTS
+    );
+    expect(enCours.moneyBack).toBe('en cours de remboursement');
+
+    const [conteste] = parseOrder(
+      order({ items: [playerItem()], payments: [{ state: 'Contested' }] }),
+      OPTS
+    );
+    expect(conteste.moneyBack).toBe('contesté auprès de la banque');
+  });
+
+  it('ne voit rien d’anormal à un paiement autorisé', () => {
+    const [item] = parseOrder(
+      order({ items: [playerItem()], payments: [{ state: 'Authorized', amount: 3000 }] }),
+      OPTS
+    );
+    expect(item.moneyBack).toBeNull();
+  });
+
+  it('survit à une commande sans aucun paiement', () => {
+    // Les commandes anciennes et les notifications allégées n'en portent pas.
+    const [item] = parseOrder(order({ items: [playerItem()] }), OPTS);
+    expect(item.moneyBack).toBeNull();
+  });
+});
+
 describe('parseOrder', () => {
   it('met une commande à plat', () => {
     const [item] = parseOrder(order({ items: [playerItem()] }), OPTS);
@@ -373,6 +455,141 @@ describe('decideItem', () => {
       expectedAmountCents: null,
     });
     expect(out).toMatchObject({ kind: 'revoke', uid: 'discord_1', what: 'companion' });
+  });
+
+  it('alerte quand l’argent est reparti mais que la ligne est restée valide', () => {
+    // LE cas du remboursement fait sans annuler la commande : `cancelOrder` vaut
+    // FALSE par défaut chez HelloAsso, donc la ligne reste 'Processed' et seul
+    // le PAIEMENT passe à 'Refunded'. Sans cette porte, le code re-confirmait la
+    // place — un siège sur 64 occupé par de l'argent rendu.
+    const out = decideItem(view({ moneyBack: 'remboursé' }), {
+      registration: { uid: 'discord_1', status: 'confirmed', paidByItemId: 5001 },
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'needs_review' });
+    expect((out as { reason: string }).reason).toContain('remboursé');
+  });
+
+  it('n’enlève JAMAIS la place toute seule sur un état de paiement', () => {
+    // Un remboursement peut être partiel, une contestation peut être levée :
+    // l'organisation tranche, prévenue par notification et message privé.
+    const out = decideItem(view({ moneyBack: 'contesté auprès de la banque' }), {
+      registration: { uid: 'discord_1', status: 'confirmed', paidByItemId: 5001 },
+      expectedAmountCents: 3000,
+    });
+    expect(out.kind).not.toBe('revoke');
+  });
+
+  it('alerte AUSSI avant toute confirmation', () => {
+    // Le dossier n'a encore rien acquis : confirmer une place avec de l'argent
+    // déjà rendu serait aussi faux que de la laisser occupée.
+    const out = decideItem(view({ moneyBack: 'remboursé' }), {
+      registration: pending,
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'needs_review' });
+  });
+
+  it('ne réveille personne pour un billet spectateur remboursé', () => {
+    // Il ne prend aucun siège de joueur : rien à arbitrer.
+    const out = decideItem(
+      view({ ticket: 'spectator', moneyBack: 'remboursé', code: null, rawCode: null }),
+      { registration: null, expectedAmountCents: null }
+    );
+    expect(out).toEqual({ kind: 'spectator' });
+  });
+
+  it('fait trancher un état inconnu qui tient une place', () => {
+    const out = decideItem(view({ state: 'Zorglub' }), {
+      registration: { uid: 'discord_1', status: 'confirmed', paidByItemId: 5001 },
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'needs_review' });
+    expect((out as { reason: string }).reason).toContain('Zorglub');
+  });
+
+  it('laisse passer un état inconnu qui ne tient rien, sans mentir sur le motif', () => {
+    // L'ancien code répondait « Paiement en cours d'autorisation » à TOUT état
+    // hors liste — un motif faux, qui faisait passer un incident pour une
+    // attente banale.
+    const out = decideItem(view({ state: 'Zorglub' }), { registration: null, expectedAmountCents: null });
+    expect(out.kind).toBe('ignore');
+    expect((out as { reason: string }).reason).toContain('Zorglub');
+  });
+
+  it('traite une ligne remboursée comme une ligne défaite', () => {
+    const out = decideItem(view({ state: 'Refunded' }), {
+      registration: { uid: 'discord_1', status: 'confirmed', paidByItemId: 5001 },
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'revoke', what: 'player' });
+  });
+
+  it('ne ressuscite pas une inscription que l’organisation a retirée', () => {
+    // L'action « retirer » de la console laisse le règlement sur le dossier.
+    // Rembourser ensuite repassait la place en « attente de paiement » : le
+    // joueur retiré réapparaissait dans la liste publique et se voyait proposer
+    // de repayer une place qu'on venait de lui reprendre.
+    const out = decideItem(view({ state: 'Canceled' }), {
+      registration: { uid: 'discord_1', status: 'cancelled', paidByItemId: 5001 },
+      expectedAmountCents: 3000,
+    });
+    expect(out.kind).toBe('ignore');
+  });
+
+  it('détache quand même la location d’un dossier retiré', () => {
+    // Le poste, lui, doit repartir au stock : il n'a rien à voir avec le statut
+    // de l'inscription.
+    const out = decideItem(view({ state: 'Canceled', ticket: 'pc_rental', itemId: 6001 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'cancelled',
+        paidByItemId: 5001,
+        pcRentalItemId: 6001,
+      },
+      expectedAmountCents: null,
+    });
+    expect(out).toMatchObject({ kind: 'revoke', what: 'pc_rental' });
+  });
+
+  it('un changement de tarif ne déclasse pas un règlement déjà encaissé', () => {
+    // Passer le prix de 30 à 35 € rebasculait TOUTE la caisse en « montant
+    // inattendu », effaçait les rattachements du journal, et envoyait une
+    // notification plus un message privé à chaque admin, par règlement.
+    const out = decideItem(view({ amountCents: 3000 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        paidAmountCents: 3000,
+      },
+      expectedAmountCents: 3500,
+    });
+    expect(out).toEqual({ kind: 'confirm_player', uid: 'discord_1' });
+  });
+
+  it('mais signale un montant qui bouge APRÈS l’encaissement', () => {
+    // Le contrôle garde son sens, comparé à ce qui a réellement été encaissé :
+    // c'est la signature d'un remboursement partiel.
+    const out = decideItem(view({ amountCents: 1500 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        paidAmountCents: 3000,
+      },
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'needs_review' });
+    expect((out as { reason: string }).reason).toContain('remboursement partiel');
+  });
+
+  it('contrôle toujours le montant à la PREMIÈRE confirmation', () => {
+    const out = decideItem(view({ amountCents: 2000 }), {
+      registration: pending,
+      expectedAmountCents: 3000,
+    });
+    expect(out).toMatchObject({ kind: 'needs_review' });
   });
 
   it('ne défait pas une location que cette ligne n’avait pas produite', () => {

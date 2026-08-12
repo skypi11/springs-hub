@@ -1,7 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createNotification } from '@/lib/notifications';
-import { alerterPlacePrise, donnerRoleInscrit } from '@/lib/mania-cup-alerts';
+import { alerterPlacePrise, donnerRoleInscrit, retirerRoleInscrit } from '@/lib/mania-cup-alerts';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
 import { sendManiaCupDM } from '@/lib/discord-bot';
 import {
@@ -15,6 +15,7 @@ import { findUidByRegistrationCode } from '@/lib/mania-cup-server';
 import {
   assignCompanionTicket,
   decideItem,
+  isItemVoided,
   isOutcomeAlreadyApplied,
   manualDecisionWins,
   unassignCompanionTicket,
@@ -63,6 +64,8 @@ export interface PaymentRecord {
   tierLabel: string;
   amountCents: number;
   state: string;
+  /** Motif en clair quand l'argent de cette ligne est reparti, sinon null. */
+  moneyBack?: string | null;
   rawCode: string | null;
   code: string | null;
   participantName: string;
@@ -103,7 +106,19 @@ export async function applyOrderItem(
   item: OrderItemView,
   opts: ApplyOptions
 ): Promise<ApplyResult> {
-  const uid = item.code ? await findUidByRegistrationCode(db, item.code) : null;
+  let uid = item.code ? await findUidByRegistrationCode(db, item.code) : null;
+
+  // Une ligne dont l'argent est reparti doit pouvoir défaire ce qu'un
+  // rattachement MANUEL avait produit. Or le code ne résout rien dans ce cas —
+  // c'est justement parce qu'il était illisible que l'organisation avait tranché
+  // à la main. Sans ce repli, rembourser un règlement rattaché à la main ne
+  // rendait pas la place ET effaçait le seul lien qui reliait les deux.
+  if (!uid && (isItemVoided(item.state) || item.moneyBack)) {
+    const prev = (
+      await db.collection(MANIA_CUP_PAYMENTS).doc(String(item.itemId)).get()
+    ).data() as PaymentRecord | undefined;
+    if (prev?.source === 'manual' && prev.matchedUid) uid = prev.matchedUid;
+  }
 
   let snapshot: RegistrationSnapshot | null = null;
   if (uid) {
@@ -114,6 +129,9 @@ export async function applyOrderItem(
         uid,
         status: reg.status,
         paidByItemId: reg.payment?.itemId ?? null,
+        // Ce qui a RÉELLEMENT été encaissé pour cette place. Comparer au tarif
+        // du jour déclassait toute la caisse dès que le prix bougeait.
+        paidAmountCents: reg.payment?.amountCents ?? null,
         // Une ligne annulée doit pouvoir défaire la location ou le billet
         // accompagnant qu'elle avait produits : sans ces deux traces, la
         // décision ne voyait que la place du joueur.
@@ -148,6 +166,20 @@ export async function applyOrderItem(
   // silencieux : c'est de l'argent reçu contre une place non confirmée.
   if (changed && (outcome.kind === 'unmatched' || outcome.kind === 'needs_review')) {
     await notifyStaffOfOrphanPayment(db, item, outcome).catch(() => {});
+  }
+
+  // Défaire est aussi lourd de conséquences que confirmer, et c'était pourtant
+  // muet : le joueur perdait sa place sans un mot, l'organisation n'apprenait
+  // pas qu'un siège repartait à la vente, et le rôle « inscrit » restait sur le
+  // Discord de Springs. Or « annulé » chez HelloAsso ne prouve même pas que
+  // l'argent est reparti — un remboursement peut avoir échoué.
+  if (changed && outcome.kind === 'revoke') {
+    await notifyRevoked(db, outcome, item).catch(() => {});
+    // Le rôle suit la PLACE : une location ou un billet accompagnant défait ne
+    // change rien à la présence du joueur.
+    if (outcome.what === 'player') {
+      await retirerRoleInscrit(db, outcome.uid).catch(() => {});
+    }
   }
 
   return {
@@ -195,6 +227,11 @@ async function writeOutcome(
     const isReplay =
       prev != null &&
       prev.state === item.state &&
+      // L'état de l'ARGENT compte autant que celui de la ligne : un
+      // remboursement sans annulation de commande laisse `state` à 'Processed',
+      // et sans cette comparaison il passerait pour un rejeu à l'identique —
+      // rien ne s'écrirait, personne ne serait prévenu.
+      (prev.moneyBack ?? null) === (item.moneyBack ?? null) &&
       prev.outcome === outcome.kind &&
       isOutcomeAlreadyApplied(outcome, item.itemId, {
         status: reg?.status,
@@ -210,12 +247,21 @@ async function writeOutcome(
       tierLabel: item.tierLabel,
       amountCents: item.amountCents,
       state: item.state,
+      moneyBack: item.moneyBack ?? null,
       rawCode: item.rawCode,
       code: item.code,
       participantName: item.participantName,
       payerName: item.payerName,
       payerEmail: item.payerEmail,
-      matchedUid: 'uid' in outcome ? outcome.uid : null,
+      // Ne jamais effacer un lien posé à la main parce que la nouvelle issue
+      // n'en porte pas : c'est la seule trace qui relie ce règlement à un
+      // dossier quand le code est illisible chez HelloAsso.
+      matchedUid:
+        'uid' in outcome
+          ? outcome.uid
+          : prev?.source === 'manual'
+            ? (prev.matchedUid ?? null)
+            : null,
       outcome: outcome.kind,
       reason: 'reason' in outcome ? outcome.reason : null,
       source: opts.source,
@@ -271,7 +317,12 @@ async function writeOutcome(
         );
       }
 
-      if (outcome.kind === 'revoke' && outcome.what === 'player') {
+      // Défense en profondeur : la décision a pu être prise avant que
+      // l'organisation ne retire l'inscription. Remettre alors le dossier « en
+      // attente de paiement » le ferait réapparaître dans la liste publique des
+      // inscrits, et proposerait au joueur de repayer une place qu'on vient de
+      // lui reprendre.
+      if (outcome.kind === 'revoke' && outcome.what === 'player' && reg?.status !== 'cancelled') {
         // La place repart à la vente. On efface la preuve de paiement : la
         // laisser ferait croire à un dossier réglé sur la console.
         tx.set(
@@ -430,6 +481,94 @@ async function notifyPlayerPaid(db: Firestore, uid: string, item: OrderItemView)
  * Le message part une seule fois par ligne de commande : `applyOrderItem` ne
  * l'appelle que lorsque la décision vient de CHANGER, jamais sur un rejeu.
  */
+/**
+ * Un règlement vient d'être défait : le joueur et l'organisation l'apprennent.
+ *
+ * Deux destinataires, deux raisons. Le joueur, parce qu'il croirait sa place
+ * acquise jusqu'au 3 octobre — et parce qu'un paiement peut avoir été refusé
+ * sans qu'il le sache. L'organisation, parce qu'elle est la seule à pouvoir
+ * vérifier chez HelloAsso si l'argent est vraiment reparti (un remboursement
+ * échoué laisse la ligne annulée alors que la somme est toujours là), et parce
+ * qu'un siège vient de se libérer sur 64 : c'est elle qui appelle la liste
+ * d'attente.
+ */
+async function notifyRevoked(
+  db: Firestore,
+  outcome: Extract<Outcome, { kind: 'revoke' }>,
+  item: OrderItemView
+): Promise<void> {
+  const amount = (item.amountCents / 100).toFixed(2);
+  const quoi =
+    outcome.what === 'player'
+      ? 'sa place'
+      : outcome.what === 'pc_rental'
+        ? 'sa location de poste'
+        : 'un billet accompagnant';
+
+  await createNotification(db, {
+    userId: outcome.uid,
+    type: 'mania_cup_payment_revoked',
+    title:
+      outcome.what === 'player'
+        ? 'Ta place n’est plus confirmée'
+        : 'Un règlement de ton dossier a été défait',
+    message:
+      `Ton règlement de ${amount} € (${item.tierLabel}) n’est plus valide chez HelloAsso : ` +
+      `${outcome.reason.toLowerCase()}. ${
+        outcome.what === 'player'
+          ? 'Ta place repart à la vente.'
+          : 'Ce que tu avais réservé a été retiré.'
+      } Si c’est une erreur, contacte l’organisation.`,
+    link: '/mania-cup/inscription',
+    metadata: { orderId: item.orderId, itemId: item.itemId },
+  }).catch(() => {});
+
+  const admins = await db.collection('aedral_admins').get().catch(() => null);
+  if (!admins || admins.empty) return;
+
+  const qui = item.participantName || item.payerName || 'inscrit inconnu';
+  const title = 'Mania Cup — règlement défait';
+  const message = `${qui} perd ${quoi} : ${outcome.reason} (${amount} €)`;
+
+  await Promise.all(
+    admins.docs.map((doc) =>
+      createNotification(db, {
+        userId: doc.id,
+        type: 'mania_cup_payment_orphan',
+        title,
+        message,
+        link: '/admin/mania-cup',
+        metadata: { orderId: item.orderId, itemId: item.itemId },
+      }).catch(() => {})
+    )
+  );
+
+  const discordIds = admins.docs
+    .map((doc) => discordIdFromUid(doc.id))
+    .filter((id): id is string => Boolean(id));
+
+  await Promise.race([
+    Promise.all(
+      discordIds.map((discordId) =>
+        sendManiaCupDM(discordId, {
+          title,
+          description: [
+            `**${qui}** perd ${quoi}.`,
+            '',
+            `Motif : ${outcome.reason}`,
+            `Montant : ${amount} € · commande ${item.orderId}`,
+            '',
+            '« Annulé » chez HelloAsso ne prouve pas que l’argent est reparti :',
+            'vérifie la commande avant de rappeler quelqu’un de la liste d’attente.',
+          ].join('\n'),
+          link: 'https://aedral.com/admin/mania-cup',
+        }).catch(() => undefined)
+      )
+    ),
+    new Promise((resolve) => setTimeout(resolve, 10_000)),
+  ]);
+}
+
 async function notifyStaffOfOrphanPayment(
   db: Firestore,
   item: OrderItemView,

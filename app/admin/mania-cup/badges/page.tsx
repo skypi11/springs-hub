@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, Printer, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { isItemValid } from '@/lib/helloasso/reconcile';
 
 // Planche de badges à imprimer.
 //
@@ -45,6 +46,8 @@ type Payment = {
   participantName: string;
   payerName: string;
   state: string;
+  /** Motif en clair quand l'argent est reparti — un billet remboursé n'entre pas. */
+  moneyBack?: string | null;
 };
 
 type Category = 'player' | 'companion' | 'spectator' | 'staff';
@@ -141,7 +144,10 @@ export default function BadgesPage() {
     if (showSpectators) {
       for (const p of payments.data?.payments ?? []) {
         if (p.ticket !== 'spectator') continue;
-        if (p.state !== 'Processed' && p.state !== 'Registered') continue;
+        // Même définition de « valide » que la caisse : recopier la liste ici
+        // garantissait qu'un jour les deux divergent. Et un billet dont l'argent
+        // est reparti ne donne pas de badge, même si sa ligne est restée valide.
+        if (!isItemValid(p.state) || p.moneyBack) continue;
         out.push({
           key: `s-${p.itemId}`,
           category: 'spectator',

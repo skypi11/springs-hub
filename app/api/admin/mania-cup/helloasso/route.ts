@@ -20,6 +20,7 @@ import {
 } from '@/lib/helloasso/client';
 import {
   assignCompanionTicket,
+  isItemValid,
   parseOrder,
   parseTierMap,
   resolveManualTicket,
@@ -30,6 +31,10 @@ import {
   MANIA_CUP_PAYMENTS,
   type PaymentRecord,
 } from '@/lib/helloasso/apply';
+
+/** Une relecture complète de la billetterie prend le temps qu'il faut : elle
+ *  est le filet de tout le module. */
+export const maxDuration = 300;
 
 // Pilotage de la billetterie HelloAsso depuis la console.
 //
@@ -88,9 +93,14 @@ export async function GET(req: NextRequest) {
     // collection entière : les calculer sur la page affichée faisait disparaître
     // les règlements les plus anciens du décompte en même temps que de l'écran,
     // et un « 0 à traiter » pouvait masquer de l'argent non rattaché.
+    //
+    // Le tri porte sur le dernier MOUVEMENT, pas sur la date d'arrivée : un
+    // remboursement ne crée pas de ligne, il modifie une ancienne. Trié par date
+    // d'arrivée, un règlement du 6 août remboursé en septembre restait tout en
+    // bas — et serait le premier à tomber de la page une fois la caisse pleine.
     const PAGE = 300;
     const [paymentsSnap, totalSnap, toReviewSnap] = await Promise.all([
-      db.collection(MANIA_CUP_PAYMENTS).orderBy('receivedAt', 'desc').limit(PAGE).get(),
+      db.collection(MANIA_CUP_PAYMENTS).orderBy('updatedAt', 'desc').limit(PAGE).get(),
       db.collection(MANIA_CUP_PAYMENTS).count().get(),
       db
         .collection(MANIA_CUP_PAYMENTS)
@@ -170,9 +180,15 @@ export async function POST(req: NextRequest) {
       const problems: { itemId: number; reason: string }[] = [];
 
       // Le générateur pagine chez HelloAsso ; on borne la boucle par le temps
-      // écoulé pour rendre la main avant que la fonction ne soit coupée. Un
-      // second passage reprendra ce qui reste — le traitement est idempotent.
-      const deadline = Date.now() + 45_000;
+      // écoulé pour rendre la main avant que la fonction ne soit coupée.
+      //
+      // La borne était à 45 s alors que la route n'exportait aucun
+      // `maxDuration` : au-delà, la relecture s'arrêtait en promettant
+      // « relance pour continuer » — or une relance repart de la PREMIÈRE page,
+      // donc la fin de la caisse serait restée hors d'atteinte, remboursements
+      // compris. Alignée sur les autres routes longues du dépôt (300 s, borne
+      // interne 30 s en dessous), la passe se termine désormais en entier.
+      const deadline = Date.now() + 270_000;
 
       for await (const order of iterateFormOrders(db, cfg)) {
         for (const item of parseOrder(order, opts)) {
@@ -241,6 +257,25 @@ export async function POST(req: NextRequest) {
 
         const payment = paySnap.data() as PaymentRecord;
         const reg = regSnap.data() as ManiaCupRegistration;
+
+        // Un règlement annulé, remboursé, ou pas encore autorisé ne vaut aucune
+        // place. La console ne se rafraîchit pas toute seule : la ligne affichée
+        // peut dater d'avant l'annulation, et rien n'empêchait de la rattacher.
+        if (!isItemValid(payment.state)) {
+          return {
+            error:
+              `Ce règlement est à l’état « ${payment.state} » : il ne vaut aucune place. ` +
+              `Relis les commandes pour rafraîchir la caisse.`,
+            status: 409,
+          };
+        }
+        if (payment.moneyBack) {
+          return {
+            error:
+              `Ce règlement est ${payment.moneyBack} chez HelloAsso : il ne vaut aucune place.`,
+            status: 409,
+          };
+        }
 
         // Le rattachement a-t-il bougé entre la lecture préalable et ici ?
         if ((payment.matchedUid ?? null) !== priorUid) {

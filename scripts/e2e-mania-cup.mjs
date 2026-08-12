@@ -285,11 +285,34 @@ async function main() {
   const retiree = (await db.collection('mania_cup_registrations').doc(P1).get()).data();
   check('le poste repart au stock', retiree?.pcRental == null);
 
-  step(8, 'Retrait : la place repart à la vente');
+  step(8, 'Un remboursement SANS annulation de commande ne laisse pas la place occupée');
+  // Chez HelloAsso, `cancelOrder` vaut FALSE par défaut sur l'API de
+  // remboursement : la ligne reste « Processed » et seul le PAIEMENT passe à
+  // « Refunded ». Le code ne lisait que l'état des lignes — un joueur remboursé
+  // gardait donc son siège sur 64, et personne n'en savait rien.
+  // La DÉCISION elle-même (lire l'état du paiement, ne plus reconfirmer une
+  // place dont l'argent est reparti, ne pas condamner le reste du panier) est
+  // couverte par les tests purs de `lib/helloasso/reconcile.test.ts` — ils
+  // s'exécutent sur de vraies formes de commandes HelloAsso, ventilation
+  // comprise. Ce qui se prouve ICI, c'est l'EFFET par les vraies routes.
+  //
+  // Le rattachement manuel refuse désormais de confirmer une place sur un
+  // règlement défait — la console pouvant afficher une ligne d'avant l'annulation.
+  await db.collection('mania_cup_payments').doc(String(ITEM_B)).set(
+    { ticket: 'player', state: 'Canceled', outcome: 'ignore', matchedUid: null },
+    { merge: true }
+  );
+  const surAnnule = await api(ADMIN_UID, 'POST', '/api/admin/mania-cup/helloasso', {
+    action: 'match', itemId: ITEM_B, targetUid: P2, ticket: 'player',
+  });
+  check('un règlement annulé ne confirme aucune place', surAnnule.status === 409, `HTTP ${surAnnule.status}`);
+  check('le motif donne l’état en cause', /Canceled|état/i.test(surAnnule.json?.error ?? ''), surAnnule.json?.error);
+
+  step(9, 'Retrait : la place repart à la vente');
   const withdraw = await api(P2, 'DELETE', '/api/mania-cup/register');
   check('retrait accepté', withdraw.status === 200, `HTTP ${withdraw.status}`);
 
-  step(9, 'Les compteurs de la console disent la vérité');
+  step(10, 'Les compteurs de la console disent la vérité');
   const admin = await api(ADMIN_UID, 'GET', '/api/admin/mania-cup/helloasso');
   if (admin.json?.configured === false) {
     // Les clés HelloAsso ne sont pas en local (elles sont « Sensitive » côté
