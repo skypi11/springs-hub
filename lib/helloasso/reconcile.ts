@@ -239,6 +239,14 @@ export function isItemVoided(state: string): boolean {
 
 const VOIDED_STATES = new Set(['Canceled', 'Refused', 'Refunded', 'Deleted']);
 
+/** Les mêmes états, tels qu'ils s'écrivent dans une console française. */
+const ETATS_DEFAITS: Record<string, string> = {
+  Canceled: 'annulée',
+  Refused: 'refusée',
+  Refunded: 'remboursée',
+  Deleted: 'supprimée',
+};
+
 /**
  * Les états qui ne valent rien ENCORE, et n'ont donc rien à défaire.
  *
@@ -452,7 +460,9 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
           : 'Commande annulée ou remboursée';
     const defait = defaireCeQueLaLigneAProduit(item, ctx.registration, reason);
     if (defait) return defait;
-    return { kind: 'ignore', reason: `Ligne ${item.state.toLowerCase()}` };
+    // En français : le motif s'affiche tel quel dans la console, et « Ligne
+    // canceled » y détonnait.
+    return { kind: 'ignore', reason: `Ligne ${ETATS_DEFAITS[item.state] ?? item.state}` };
   }
 
   // L'argent est reparti, mais la LIGNE, elle, est restée valide.
