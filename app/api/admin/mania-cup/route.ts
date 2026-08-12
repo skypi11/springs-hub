@@ -15,6 +15,7 @@ import {
 import { lireFileAttente, compterPlacesReglees } from '@/lib/mania-cup-waitlist-server';
 import {
   MANIA_CUP_REGISTRATIONS,
+  isRentalPaid,
   type ManiaCupCompanion,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
@@ -186,6 +187,7 @@ export async function PATCH(req: NextRequest) {
       message?: unknown;
       countryCode?: unknown;
       pcRental?: unknown;
+      label?: unknown;
     } | null;
 
     const target = typeof body?.uid === 'string' ? body.uid : '';
@@ -558,24 +560,48 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true, countryCode: code });
     }
 
-    /** Marquer une location de poste à la main.
+    /** Noter une location de poste convenue en dehors de la boutique.
      *
-     *  `pcRental` ne pouvait venir que de la boutique HelloAsso, qui n'existe
-     *  pas encore — l'organisation n'avait donc aucun moyen d'enregistrer une
-     *  location convenue de vive voix ou sur le Discord, alors que le nombre de
-     *  postes disponibles est très limité et qu'il faut savoir qui en occupe un.
+     *  Une location peut se convenir de vive voix ou sur le Discord, alors que
+     *  le nombre de postes est très limité et qu'il faut savoir qui en occupe
+     *  un. Ce chemin sert à ça, et à rien d'autre.
      *
-     *  Quand la boutique existera, elle écrira le même champ avec son montant
-     *  réel : ce chemin restera le rattrapage. */
+     *  Il ne touche JAMAIS une location réglée à la billetterie. Ce garde-fou
+     *  vient d'un incident : le bouton était un interrupteur muet, un clic
+     *  destiné à consulter le matériel loué a écrasé une location de 90 € par
+     *  une location manuelle à 0 €, faisant perdre le lien avec l'argent
+     *  encaissé et l'intitulé de l'article. La vérité d'un règlement vient de
+     *  HelloAsso : elle se défait chez HelloAsso, par un remboursement, que la
+     *  relecture des commandes reporte ici. */
 
     if (action === 'set_pc_rental') {
       const rented = body?.pcRental === true;
+
+      if (isRentalPaid(reg.pcRental)) {
+        const quoi = reg.pcRental?.label ? ` (${reg.pcRental.label})` : '';
+        return NextResponse.json(
+          {
+            error:
+              `Cette location a été réglée à la billetterie${quoi}. ` +
+              `Elle ne se retire pas d’ici : si le joueur annule, rembourse la ` +
+              `ligne sur HelloAsso puis relis les commandes — la location ` +
+              `disparaîtra d’elle-même.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      // L'intitulé du matériel : sans lui, l'organisation sait qu'un poste est
+      // réservé mais pas lequel préparer. Facultatif, borné, jamais inventé.
+      const rawLabel = typeof body?.label === 'string' ? body.label.trim().slice(0, 80) : '';
+
       await docRef.update({
         pcRental: rented
           ? {
               // Aucun montant : rien n'a été encaissé par ce chemin. Inscrire un
               // prix ici ferait croire à un règlement reçu.
               amountCents: 0,
+              ...(rawLabel ? { label: rawLabel } : {}),
               source: 'manual',
               at: FieldValue.serverTimestamp(),
             }
@@ -588,7 +614,7 @@ export async function PATCH(req: NextRequest) {
         targetType: 'user',
         targetId: target,
         targetLabel: reg.tmDisplayName ?? target,
-        metadata: { rented },
+        metadata: { rented, label: rawLabel || null },
       });
       return NextResponse.json({ ok: true, rented });
     }

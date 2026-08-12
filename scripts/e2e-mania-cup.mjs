@@ -39,6 +39,7 @@ const P1 = `discord_${P}_p1`;
 const P2 = `discord_${P}_p2`;
 const ITEM_A = 990000001;
 const ITEM_B = 990000002;
+const ITEM_RENTAL = 990000003;
 
 function parseSA(raw) {
   try { return JSON.parse(raw); } catch {
@@ -144,7 +145,7 @@ async function cleanup() {
       batch.delete(d.ref);
     }
   }
-  for (const itemId of [ITEM_A, ITEM_B]) {
+  for (const itemId of [ITEM_A, ITEM_B, ITEM_RENTAL]) {
     batch.delete(db.collection('mania_cup_payments').doc(String(itemId)));
   }
   for (const uid of [P1, P2]) batch.delete(db.collection('users').doc(uid));
@@ -237,11 +238,58 @@ async function main() {
   check('refus explicite', spec.status === 409, `HTTP ${spec.status}`);
   check('le motif parle du billet spectateur', /spectateur/i.test(spec.json?.error ?? ''), spec.json?.error);
 
-  step(7, 'Retrait : la place repart à la vente');
+  step(7, 'Une location réglée ne s’efface pas d’un clic dans la console');
+  // Le 12 août, le bouton « Poste loué » de la console était un interrupteur
+  // muet : un clic destiné à consulter le matériel loué a écrasé une location
+  // de 90 € par une location manuelle à 0 €, faisant perdre le lien avec
+  // l'argent encaissé ET l'intitulé de l'article à préparer.
+  await db.collection('mania_cup_registrations').doc(P1).set(
+    {
+      pcRental: {
+        itemId: ITEM_RENTAL,
+        orderId: ITEM_RENTAL + 500,
+        amountCents: 9000,
+        label: 'LOCATION PC FIXE (2 jours)',
+        source: 'helloasso',
+      },
+    },
+    { merge: true }
+  );
+
+  const effacer = await api(ADMIN_UID, 'PATCH', '/api/admin/mania-cup', {
+    uid: P1, action: 'set_pc_rental', pcRental: false,
+  });
+  check('la route REFUSE d’effacer une location payée', effacer.status === 409, `HTTP ${effacer.status}`);
+  check('le motif dit où ça se défait', /rembourse/i.test(effacer.json?.error ?? ''), effacer.json?.error);
+
+  const apresRefus = (await db.collection('mania_cup_registrations').doc(P1).get()).data();
+  check('la location est intacte', apresRefus?.pcRental?.itemId === ITEM_RENTAL);
+  check('l’article à préparer est conservé', apresRefus?.pcRental?.label === 'LOCATION PC FIXE (2 jours)');
+  check('le montant encaissé est conservé', apresRefus?.pcRental?.amountCents === 9000);
+
+  // Une location notée à la main, elle, se retire — et porte son matériel.
+  await db.collection('mania_cup_registrations').doc(P1).set({ pcRental: null }, { merge: true });
+  const noter = await api(ADMIN_UID, 'PATCH', '/api/admin/mania-cup', {
+    uid: P1, action: 'set_pc_rental', pcRental: true, label: 'écran seul',
+  });
+  check('une location convenue s’enregistre', noter.status === 200, `HTTP ${noter.status}`);
+  const manuelle = (await db.collection('mania_cup_registrations').doc(P1).get()).data();
+  check('elle dit QUOI est loué', manuelle?.pcRental?.label === 'écran seul', String(manuelle?.pcRental?.label));
+  check('elle n’invente aucun règlement', manuelle?.pcRental?.amountCents === 0);
+  check('elle ne se donne pas de ligne HelloAsso', manuelle?.pcRental?.itemId == null);
+
+  const retirer = await api(ADMIN_UID, 'PATCH', '/api/admin/mania-cup', {
+    uid: P1, action: 'set_pc_rental', pcRental: false,
+  });
+  check('elle se retire, elle', retirer.status === 200, `HTTP ${retirer.status}`);
+  const retiree = (await db.collection('mania_cup_registrations').doc(P1).get()).data();
+  check('le poste repart au stock', retiree?.pcRental == null);
+
+  step(8, 'Retrait : la place repart à la vente');
   const withdraw = await api(P2, 'DELETE', '/api/mania-cup/register');
   check('retrait accepté', withdraw.status === 200, `HTTP ${withdraw.status}`);
 
-  step(8, 'Les compteurs de la console disent la vérité');
+  step(9, 'Les compteurs de la console disent la vérité');
   const admin = await api(ADMIN_UID, 'GET', '/api/admin/mania-cup/helloasso');
   if (admin.json?.configured === false) {
     // Les clés HelloAsso ne sont pas en local (elles sont « Sensitive » côté

@@ -8,6 +8,7 @@ import {
   isItemValid,
   isItemVoided,
   assignCompanionTicket,
+  unassignCompanionTicket,
   isDonationLike,
   resolveManualTicket,
   isOutcomeAlreadyApplied,
@@ -326,7 +327,67 @@ describe('decideItem', () => {
       registration: { uid: 'discord_1', status: 'confirmed', paidByItemId: 5001 },
       expectedAmountCents: 3000,
     });
-    expect(out).toMatchObject({ kind: 'revoke', uid: 'discord_1' });
+    expect(out).toMatchObject({ kind: 'revoke', uid: 'discord_1', what: 'player' });
+  });
+
+  it('rend le poste au stock quand la location est remboursée', () => {
+    // Les postes à louer sont peu nombreux. En garder un réservé pour un
+    // règlement reparti, c'est le refuser à quelqu'un d'autre — et sortir une
+    // machine pour personne le jour J.
+    const out = decideItem(view({ state: 'Canceled', ticket: 'pc_rental', itemId: 6001 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        pcRentalItemId: 6001,
+      },
+      expectedAmountCents: null,
+    });
+    expect(out).toMatchObject({ kind: 'revoke', uid: 'discord_1', what: 'pc_rental' });
+  });
+
+  it('ne touche pas à la place du joueur quand seule sa location est remboursée', () => {
+    // La ligne remboursée est celle de la location : le règlement de
+    // l'inscription, lui, n'a pas bougé.
+    const out = decideItem(view({ state: 'Canceled', ticket: 'pc_rental', itemId: 6001 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        pcRentalItemId: 6001,
+      },
+      expectedAmountCents: null,
+    });
+    expect(out).not.toMatchObject({ what: 'player' });
+  });
+
+  it('détache un billet accompagnant remboursé', () => {
+    // Sans ça, un badge s'imprimait le 3 octobre pour un billet reparti.
+    const out = decideItem(view({ state: 'Canceled', ticket: 'companion', itemId: 7001 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        companionItemIds: [7001],
+      },
+      expectedAmountCents: null,
+    });
+    expect(out).toMatchObject({ kind: 'revoke', uid: 'discord_1', what: 'companion' });
+  });
+
+  it('ne défait pas une location que cette ligne n’avait pas produite', () => {
+    // Le joueur a loué deux fois (annulation puis nouvelle commande) : seule la
+    // ligne qui tient la location courante peut la défaire.
+    const out = decideItem(view({ state: 'Canceled', ticket: 'pc_rental', itemId: 6001 }), {
+      registration: {
+        uid: 'discord_1',
+        status: 'confirmed',
+        paidByItemId: 5001,
+        pcRentalItemId: 6099,
+      },
+      expectedAmountCents: null,
+    });
+    expect(out.kind).toBe('ignore');
   });
 
   it('ne défait rien quand la ligne annulée n’avait rien confirmé', () => {
@@ -373,6 +434,35 @@ describe('decideItem', () => {
       expectedAmountCents: null,
     });
     expect(out).toMatchObject({ kind: 'needs_review' });
+  });
+});
+
+describe('unassignCompanionTicket', () => {
+  const slot = (name: string, itemId: number | null = null) => ({
+    name,
+    role: 'Accompagnant',
+    ticketItemId: itemId,
+  });
+
+  it('détache le billet remboursé sans effacer la personne', () => {
+    // L'accompagnant reste déclaré : le joueur vient toujours avec quelqu'un,
+    // il n'a simplement plus de billet réglé.
+    const out = unassignCompanionTicket([slot('Martine Dupont', 7001)], 7001);
+    expect(out).toEqual([
+      { name: 'Martine Dupont', role: 'Accompagnant', ticketItemId: null, ticketPaidAt: null },
+    ]);
+  });
+
+  it('laisse les autres billets en place', () => {
+    const out = unassignCompanionTicket([slot('A', 7001), slot('B', 7002)], 7002);
+    expect(out?.[0].ticketItemId).toBe(7001);
+    expect(out?.[1].ticketItemId).toBeNull();
+  });
+
+  it('ne renvoie rien quand il n’y avait rien à détacher', () => {
+    // Sûr au rejeu : HelloAsso renvoie ses notifications plusieurs fois.
+    expect(unassignCompanionTicket([slot('A', 7001)], 9999)).toBeNull();
+    expect(unassignCompanionTicket([], 7001)).toBeNull();
   });
 });
 
@@ -569,9 +659,28 @@ describe('isOutcomeAlreadyApplied — « Relire les commandes » doit réparer, 
   });
 
   it('révocation : appliquée dès que le dossier n’est plus confirmé', () => {
-    const revoke = { kind: 'revoke', uid: 'u1', reason: 'remboursé' } as const;
+    const revoke = { kind: 'revoke', uid: 'u1', reason: 'remboursé', what: 'player' } as const;
     expect(isOutcomeAlreadyApplied(revoke, 42, { status: 'pending_payment' })).toBe(true);
     expect(isOutcomeAlreadyApplied(revoke, 42, { status: 'confirmed' })).toBe(false);
+  });
+
+  it('révocation d’une location : se juge à la location, pas au statut', () => {
+    // Un dossier reste confirmé — le joueur a payé sa place — pendant que sa
+    // location repart. Juger au statut aurait déclaré l'effet déjà appliqué et
+    // laissé le poste réservé pour toujours.
+    const revoke = { kind: 'revoke', uid: 'u1', reason: 'remboursé', what: 'pc_rental' } as const;
+    expect(
+      isOutcomeAlreadyApplied(revoke, 42, { status: 'confirmed', pcRentalItemId: null })
+    ).toBe(true);
+    expect(
+      isOutcomeAlreadyApplied(revoke, 42, { status: 'confirmed', pcRentalItemId: 42 })
+    ).toBe(false);
+  });
+
+  it('révocation d’un billet accompagnant : se juge au billet', () => {
+    const revoke = { kind: 'revoke', uid: 'u1', reason: 'remboursé', what: 'companion' } as const;
+    expect(isOutcomeAlreadyApplied(revoke, 7, { companionItemIds: [null] })).toBe(true);
+    expect(isOutcomeAlreadyApplied(revoke, 7, { companionItemIds: [7] })).toBe(false);
   });
 
   it('accompagnant : reconnaît le billet déjà attribué', () => {
@@ -600,7 +709,12 @@ describe('manualDecisionWins — une relecture ne défait pas ce qu’un humain 
 
   it('s’efface devant un remboursement : l’argent est reparti', () => {
     expect(
-      manualDecisionWins(manual, { kind: 'revoke', uid: 'discord_1', reason: 'Remboursé' })
+      manualDecisionWins(manual, {
+        kind: 'revoke',
+        uid: 'discord_1',
+        reason: 'Remboursé',
+        what: 'player',
+      })
     ).toBe(false);
   });
 

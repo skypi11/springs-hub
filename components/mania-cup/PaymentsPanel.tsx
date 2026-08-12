@@ -247,9 +247,14 @@ function PaymentRow({
     return targets.filter((t) => codes.includes(t.code));
   }, [payment.rawCode, targets]);
 
-  const ticketLabel = payment.ticket
-    ? (TICKET_LABELS[payment.ticket as keyof typeof TICKET_LABELS] ?? payment.tierLabel)
-    : payment.tierLabel || 'Tarif inconnu';
+  // L'ARTICLE d'abord, la catégorie ensuite. L'inverse effaçait la seule
+  // information utile : « Location PC » ne dit pas s'il faut préparer une tour,
+  // un portable ou un écran seul — il fallait rouvrir HelloAsso pour le savoir,
+  // alors que « LOCATION PC FIXE (2 jours) » était déjà en base.
+  const ticketLabel = payment.tierLabel || 'Tarif inconnu';
+  const categorie = payment.ticket
+    ? (TICKET_LABELS[payment.ticket as keyof typeof TICKET_LABELS] ?? null)
+    : null;
 
   return (
     <div className="panel bevel">
@@ -259,6 +264,9 @@ function PaymentRow({
             <div className="flex flex-wrap items-center gap-2">
               <Ticket size={15} style={{ color: 'var(--s-text-dim)' }} aria-hidden />
               <span className="font-semibold">{ticketLabel}</span>
+              {categorie && categorie.toLowerCase() !== ticketLabel.toLowerCase() && (
+                <span className="tag tag-neutral">{categorie}</span>
+              )}
               <span className="t-mono" style={{ color: 'var(--s-text-dim)' }}>
                 {euros(payment.amountCents)}
               </span>

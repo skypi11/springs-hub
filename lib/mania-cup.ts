@@ -313,8 +313,13 @@ export interface ManiaCupRegistration {
    * qu'un joueur avait loué et combien il avait payé, mais pas CE QU'IL FAUT
    * LUI PRÉPARER le jour J. Le montant permettait de le deviner, jusqu'au jour
    * où deux articles auront le même prix.
+   *
+   * `itemId` n'existe QUE pour une location réglée à la billetterie : c'est le
+   * lien avec l'argent encaissé. Une location convenue de vive voix n'en a pas,
+   * et le type le disait pourtant obligatoire — ce mensonge a laissé passer le
+   * code qui écrasait une location payée par une location manuelle à 0 €.
    */
-  pcRental?: { itemId: number; amountCents: number; label?: string; at?: unknown } | null;
+  pcRental?: ManiaCupRental | null;
   /** Emplacement attribué dans la salle, imprimé sur le badge. */
   seat?: string | null;
   /** Passage à l'accueil le jour J. */
@@ -353,6 +358,38 @@ export const MAX_COMPANIONS = 3;
 
 export function isCompanionPaid(c: ManiaCupCompanion): boolean {
   return c.ticketItemId != null;
+}
+
+/**
+ * Le matériel qu'un joueur loue à l'organisation.
+ *
+ * Deux origines, qui n'ont pas la même autorité : la billetterie, qui a encaissé
+ * un article précis, et l'organisation, qui note une location convenue sur le
+ * Discord. La première ne se défait pas d'un clic — c'est de l'argent reçu.
+ */
+export interface ManiaCupRental {
+  /** Ligne HelloAsso réglée. Absent = location notée par l'organisation. */
+  itemId?: number;
+  /** Commande HelloAsso, pour retrouver le règlement sans fouiller la caisse. */
+  orderId?: number;
+  /** En CENTIMES. Vaut 0 pour une location notée à la main : rien n'a été encaissé. */
+  amountCents: number;
+  /** L'intitulé de l'article : c'est lui qui dit quel matériel préparer. */
+  label?: string;
+  source?: 'helloasso' | 'manual';
+  at?: unknown;
+}
+
+/**
+ * Cette location vient-elle d'un règlement encaissé ?
+ *
+ * Sert de garde partout où l'on s'apprête à l'effacer : une location payée ne
+ * se retire pas parce qu'on a cliqué sur ce qu'on prenait pour un badge. Le
+ * lien avec la ligne HelloAsso fait foi, pas `source` — les locations écrites
+ * avant que ce champ existe n'en portent aucun.
+ */
+export function isRentalPaid(rental: ManiaCupRental | null | undefined): boolean {
+  return rental?.itemId != null;
 }
 
 /** Ce qu'on garde d'un règlement encaissé sur HelloAsso. */

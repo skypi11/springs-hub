@@ -349,9 +349,16 @@ export async function POST(req: NextRequest) {
           tx.set(
             regRef,
             {
+              // Exactement ce qu'écrit le chemin automatique (apply.ts). Ce bloc
+              // oubliait le libellé de l'article : la location était bien
+              // enregistrée, mais l'organisation ne savait plus QUOI préparer —
+              // le seul chemin pour le retrouver était de rouvrir HelloAsso.
               pcRental: {
                 itemId: payment.itemId,
+                orderId: payment.orderId,
                 amountCents: payment.amountCents,
+                label: payment.tierLabel,
+                source: 'helloasso',
                 at: FieldValue.serverTimestamp(),
               },
               updatedAt: FieldValue.serverTimestamp(),

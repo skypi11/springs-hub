@@ -17,6 +17,7 @@ import {
   decideItem,
   isOutcomeAlreadyApplied,
   manualDecisionWins,
+  unassignCompanionTicket,
   type Outcome,
   type OrderItemView,
   type RegistrationSnapshot,
@@ -113,6 +114,13 @@ export async function applyOrderItem(
         uid,
         status: reg.status,
         paidByItemId: reg.payment?.itemId ?? null,
+        // Une ligne annulée doit pouvoir défaire la location ou le billet
+        // accompagnant qu'elle avait produits : sans ces deux traces, la
+        // décision ne voyait que la place du joueur.
+        pcRentalItemId: reg.pcRental?.itemId ?? null,
+        companionItemIds: readCompanions(reg)
+          .map((c) => c.ticketItemId)
+          .filter((id): id is number => id != null),
       };
     }
   }
@@ -263,7 +271,7 @@ async function writeOutcome(
         );
       }
 
-      if (outcome.kind === 'revoke') {
+      if (outcome.kind === 'revoke' && outcome.what === 'player') {
         // La place repart à la vente. On efface la preuve de paiement : la
         // laisser ferait croire à un dossier réglé sur la console.
         tx.set(
@@ -276,6 +284,30 @@ async function writeOutcome(
           },
           { merge: true }
         );
+      }
+
+      if (outcome.kind === 'revoke' && outcome.what === 'pc_rental') {
+        // Le matériel repart au stock. Les postes à louer sont peu nombreux :
+        // en garder un réservé pour un règlement reparti, c'est le refuser à
+        // quelqu'un d'autre.
+        tx.set(
+          regRef,
+          { pcRental: null, updatedAt: FieldValue.serverTimestamp() },
+          { merge: true }
+        );
+      }
+
+      if (outcome.kind === 'revoke' && outcome.what === 'companion') {
+        // L'accompagnant reste déclaré, mais son billet n'est plus réglé : sans
+        // ça, un badge s'imprimait le jour J pour un billet remboursé.
+        const next = unassignCompanionTicket(readCompanions(reg), item.itemId);
+        if (next) {
+          tx.set(
+            regRef,
+            { companions: next, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true }
+          );
+        }
       }
 
       if (outcome.kind === 'companion_paid') {
@@ -324,10 +356,15 @@ async function writeOutcome(
           {
             pcRental: {
               itemId: item.itemId,
+              // La commande, pour retrouver le règlement sans fouiller la
+              // caisse : celle de la location n'est pas celle de l'inscription
+              // quand le joueur revient payer plus tard.
+              orderId: item.orderId,
               amountCents: item.amountCents,
               // L'intitulé de l'article, tel qu'il figure dans la boutique :
               // c'est lui qui dit quel matériel préparer.
               label: item.tierLabel,
+              source: 'helloasso',
               at: FieldValue.serverTimestamp(),
             },
             updatedAt: FieldValue.serverTimestamp(),

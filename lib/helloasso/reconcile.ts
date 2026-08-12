@@ -236,6 +236,25 @@ export function assignCompanionTicket(
   ];
 }
 
+/**
+ * Détache le billet d'un accompagnant, quand HelloAsso l'a annulé ou remboursé.
+ *
+ * L'accompagnant reste déclaré — le joueur vient toujours avec quelqu'un, il
+ * n'a simplement plus de billet réglé. Le supprimer effacerait une déclaration
+ * que le joueur avait faite, et qu'il n'aurait aucun moyen de retrouver.
+ *
+ * Renvoie null s'il n'y avait rien à détacher : l'opération reste sûre au rejeu.
+ */
+export function unassignCompanionTicket(
+  companions: readonly CompanionSlot[],
+  itemId: number
+): CompanionSlot[] | null {
+  if (!companions.some((c) => c.ticketItemId === itemId)) return null;
+  return companions.map((c) =>
+    c.ticketItemId === itemId ? { ...c, ticketItemId: null, ticketPaidAt: null } : c
+  );
+}
+
 /** Ce dont la règle d'attribution a besoin, et rien de plus. */
 export interface CompanionSlot {
   name: string;
@@ -251,6 +270,10 @@ export interface RegistrationSnapshot {
   status: RegistrationStatus;
   /** Identifiant de la ligne qui a déjà réglé cette inscription, s'il y en a. */
   paidByItemId?: number | null;
+  /** Ligne qui a réglé la location de poste, s'il y en a une. */
+  pcRentalItemId?: number | null;
+  /** Lignes qui ont réglé les billets accompagnants. */
+  companionItemIds?: readonly number[];
 }
 
 export type Outcome =
@@ -268,8 +291,14 @@ export type Outcome =
   | { kind: 'unmatched'; reason: string }
   /** Quelque chose ne colle pas : décision humaine. */
   | { kind: 'needs_review'; reason: string }
-  /** Ligne annulée ou remboursée : défaire la confirmation. */
-  | { kind: 'revoke'; uid: string; reason: string };
+  /**
+   * Ligne annulée ou remboursée : défaire ce qu'elle avait produit.
+   *
+   * `what` dit quoi défaire. Sans lui, seule la place du joueur était rendue :
+   * une location ou un billet accompagnant remboursé restait inscrit au dossier,
+   * et le jour J l'organisation sortait une machine pour personne.
+   */
+  | { kind: 'revoke'; uid: string; reason: string; what: 'player' | 'pc_rental' | 'companion' };
 
 export interface DecideContext {
   /** Le dossier désigné par le code, si le code a pu être résolu. */
@@ -289,12 +318,23 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
   // Les lignes annulées ou remboursées défont ce qu'elles avaient produit —
   // mais seulement si elles avaient bien produit quelque chose.
   if (isItemVoided(item.state)) {
-    if (item.ticket === 'player' && ctx.registration?.paidByItemId === item.itemId) {
-      return {
-        kind: 'revoke',
-        uid: ctx.registration.uid,
-        reason: item.state === 'Refused' ? 'Paiement refusé' : 'Commande annulée ou remboursée',
-      };
+    const reason =
+      item.state === 'Refused' ? 'Paiement refusé' : 'Commande annulée ou remboursée';
+    const reg = ctx.registration;
+    if (reg) {
+      // On ne défait que ce que CETTE ligne avait produit : le rapprochement se
+      // fait sur son identifiant, jamais sur son type seul. Un joueur qui a
+      // re-payé garde sa place, et son ancien règlement remboursé ne la reprend
+      // pas au passage.
+      if (item.ticket === 'player' && reg.paidByItemId === item.itemId) {
+        return { kind: 'revoke', uid: reg.uid, reason, what: 'player' };
+      }
+      if (item.ticket === 'pc_rental' && reg.pcRentalItemId === item.itemId) {
+        return { kind: 'revoke', uid: reg.uid, reason, what: 'pc_rental' };
+      }
+      if (item.ticket === 'companion' && (reg.companionItemIds ?? []).includes(item.itemId)) {
+        return { kind: 'revoke', uid: reg.uid, reason, what: 'companion' };
+      }
     }
     return { kind: 'ignore', reason: `Ligne ${item.state.toLowerCase()}` };
   }
@@ -462,6 +502,10 @@ export function isOutcomeAlreadyApplied(
     case 'confirm_player':
       return reg.status === 'confirmed' && reg.paidByItemId === itemId;
     case 'revoke':
+      // Chaque type se juge à sa propre trace : un dossier peut avoir perdu sa
+      // location sans perdre sa place, et inversement.
+      if (outcome.what === 'pc_rental') return reg.pcRentalItemId !== itemId;
+      if (outcome.what === 'companion') return !(reg.companionItemIds ?? []).includes(itemId);
       return reg.status !== 'confirmed';
     case 'companion_paid':
       return (reg.companionItemIds ?? []).includes(itemId);

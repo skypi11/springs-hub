@@ -51,7 +51,13 @@ export type Row = {
     orderId?: number | null;
     itemId?: number | null;
   } | null;
-  pcRental: { amountCents: number; label?: string } | null;
+  /** `itemId` présent = location réglée à la billetterie, donc intouchable ici. */
+  pcRental: {
+    amountCents: number;
+    label?: string;
+    itemId?: number | null;
+    orderId?: number | null;
+  } | null;
   seat: string | null;
   checkedIn: boolean;
   /** Horodatages Firestore sérialisés. L'ordre d'arrivée décide de tout quand
@@ -67,6 +73,8 @@ export type ActionBody = {
   reason?: string;
   countryCode?: string;
   pcRental?: boolean;
+  /** Le matériel convenu, quand la location est notée à la main. */
+  label?: string;
   seat?: string;
   message?: string;
 };
@@ -421,19 +429,11 @@ function Dossier({
             {r.checkedIn ? 'Annuler l’arrivée' : 'Noter son arrivée'}
           </button>
 
-          <button
-            onClick={() => onAct({ uid: r.uid, action: 'set_pc_rental', pcRental: !r.pcRental })}
-            disabled={pending}
-            className={`bevel-sm inline-flex items-center gap-2 border px-3 py-1.5 text-sm disabled:opacity-40 ${
-              r.pcRental
-                ? 'border-[#a364d9]/50 text-[#a364d9] hover:bg-[#a364d9]/10'
-                : 'border-white/20 hover:bg-white/10'
-            }`}
-          >
-            <Monitor size={14} aria-hidden />
-            {r.pcRental ? 'Poste loué' : 'Louer un poste'}
-          </button>
         </div>
+
+        <Champ label="Matériel loué">
+          <MaterielLoue row={r} onAct={onAct} pending={pending} />
+        </Champ>
 
         <ChampEditable
           label="Emplacement dans la salle"
@@ -697,6 +697,138 @@ function RetirerInscription({
         </button>
         <button
           onClick={() => setConfirme(false)}
+          className="px-2 py-1 text-xs"
+          style={{ color: 'var(--s-text-dim)' }}
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Matériel loué ────────────────────────────────────────────────────────────
+
+/**
+ * Ce que le joueur a loué, et par quel chemin.
+ *
+ * Cet emplacement portait un bouton à deux états — « Louer un poste » /
+ * « Poste loué ». Il avait l'apparence d'un badge et le comportement d'un
+ * interrupteur : un clic destiné à savoir QUEL matériel avait été loué a effacé
+ * une location réglée 90 €, et l'a remplacée par une location manuelle à 0 €.
+ *
+ * Deux règles en découlent. L'article s'écrit toujours en toutes lettres —
+ * c'est la seule chose qui compte le jour J, savoir quoi sortir du carton. Et
+ * une location réglée à la billetterie ne s'annule pas d'ici : elle représente
+ * de l'argent encaissé, elle se défait chez HelloAsso.
+ */
+export function MaterielLoue({
+  row: r,
+  onAct,
+  pending,
+}: {
+  row: Row;
+  onAct: (b: ActionBody) => void;
+  pending: boolean;
+}) {
+  const [saisie, setSaisie] = useState<string | null>(null);
+  const rental = r.pcRental;
+  const regle = rental?.itemId != null;
+
+  if (rental) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Monitor size={15} className="shrink-0 text-[#a364d9]" aria-hidden />
+          <span className="font-semibold">
+            {rental.label ?? (
+              <span style={{ color: 'var(--s-gold)' }}>matériel non précisé</span>
+            )}
+          </span>
+          {rental.amountCents > 0 && (
+            <span className="t-mono" style={{ color: 'var(--s-text-dim)' }}>
+              {(rental.amountCents / 100).toFixed(2).replace('.', ',')} €
+            </span>
+          )}
+        </div>
+
+        {regle ? (
+          <>
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Réglé à la billetterie. Pour annuler : rembourse la ligne sur
+              HelloAsso, puis « Relire les commandes » — la location partira d’elle-même.
+            </p>
+            {rental.orderId != null && <NumeroCommande orderId={rental.orderId} />}
+          </>
+        ) : (
+          <>
+            <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+              Noté par l’organisation — aucun règlement encaissé.
+            </p>
+            <button
+              onClick={() => onAct({ uid: r.uid, action: 'set_pc_rental', pcRental: false })}
+              disabled={pending}
+              className="text-xs underline disabled:opacity-40"
+              style={{ color: 'var(--s-text-dim)' }}
+            >
+              Retirer cette location
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (saisie === null) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Vide />
+        <button
+          onClick={() => setSaisie('')}
+          disabled={pending}
+          className="text-xs underline disabled:opacity-40"
+          style={{ color: 'var(--s-text-dim)' }}
+        >
+          Noter une location
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        autoFocus
+        value={saisie}
+        onChange={(e) => setSaisie(e.target.value)}
+        placeholder="PC fixe, PC portable, écran…"
+        aria-label="Matériel loué"
+        maxLength={80}
+        className="w-full border border-white/20 bg-black/40 px-2 py-1 text-sm outline-none focus:border-[#a364d9]"
+      />
+      <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+        Pour une location convenue sur le Discord ou de vive voix. Une location
+        payée à la billetterie arrive toute seule, avec son article.
+      </p>
+      <div className="flex gap-2">
+        <button
+          disabled={!saisie.trim() || pending}
+          onClick={() => {
+            onAct({
+              uid: r.uid,
+              action: 'set_pc_rental',
+              pcRental: true,
+              label: saisie.trim(),
+            });
+            setSaisie(null);
+          }}
+          className="inline-flex items-center gap-1 border border-[#a364d9]/40 px-2 py-1 text-xs text-[#a364d9] hover:bg-[#a364d9]/10 disabled:opacity-40"
+        >
+          {pending ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}
+          Enregistrer
+        </button>
+        <button
+          onClick={() => setSaisie(null)}
           className="px-2 py-1 text-xs"
           style={{ color: 'var(--s-text-dim)' }}
         >

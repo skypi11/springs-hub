@@ -8,6 +8,7 @@ import {
   ageAtEvent,
   needsGuardianConsent,
   discordIdFromUid,
+  isRentalPaid,
   MANIA_CUP,
   type GuardianDoc,
   type GuardianDocKind,
@@ -17,6 +18,28 @@ import {
 // HelloAsso et un dossier sur Aedral. Tout ce qui le concerne — sa forme, sa
 // lecture, sa remise en forme après une recopie humaine — se teste ici, parce
 // qu'une erreur y créditerait un joueur du paiement d'un autre.
+
+describe('isRentalPaid', () => {
+  // Cette garde vient d'un incident : un clic destiné à consulter le matériel
+  // loué a écrasé une location réglée 90 € par une location manuelle à 0 €.
+  // Le lien avec la ligne HelloAsso fait foi — c'est lui qui représente
+  // l'argent encaissé.
+  it('reconnaît une location réglée à la billetterie', () => {
+    expect(isRentalPaid({ itemId: 198968963, amountCents: 9000, label: 'LOCATION PC FIXE' })).toBe(true);
+  });
+
+  it('laisse retirer une location notée par l’organisation', () => {
+    expect(isRentalPaid({ amountCents: 0, source: 'manual', label: 'PC fixe' })).toBe(false);
+  });
+
+  it('ne se fie pas à `source` seul', () => {
+    // Les locations écrites avant que ce champ existe n'en portent aucun : les
+    // juger sur lui les aurait rendues effaçables d'un clic.
+    expect(isRentalPaid({ itemId: 42, amountCents: 9000 })).toBe(true);
+    expect(isRentalPaid(null)).toBe(false);
+    expect(isRentalPaid(undefined)).toBe(false);
+  });
+});
 
 describe('generateRegistrationCode', () => {
   it('produit la forme LAN-XXXX', () => {
