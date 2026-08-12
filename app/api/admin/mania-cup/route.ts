@@ -188,6 +188,7 @@ export async function PATCH(req: NextRequest) {
       countryCode?: unknown;
       pcRental?: unknown;
       label?: unknown;
+      confirm?: unknown;
     } | null;
 
     const target = typeof body?.uid === 'string' ? body.uid : '';
@@ -577,15 +578,34 @@ export async function PATCH(req: NextRequest) {
     if (action === 'set_pc_rental') {
       const rented = body?.pcRental === true;
 
-      if (isRentalPaid(reg.pcRental)) {
+      // Une location réglée ne s'ÉCRASE pas — c'est l'incident d'origine.
+      if (rented && isRentalPaid(reg.pcRental)) {
         const quoi = reg.pcRental?.label ? ` (${reg.pcRental.label})` : '';
         return NextResponse.json(
           {
+            error: `Ce joueur a déjà une location réglée à la billetterie${quoi}.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      // La RETIRER reste possible, mais jamais d'un clic distrait : il faut le
+      // demander explicitement.
+      //
+      // Le refus sec renvoyait à « rembourse chez HelloAsso, la location partira
+      // d'elle-même » — or c'est faux dans le cas le plus courant : un
+      // remboursement sans annulation de commande laisse la ligne valide, donc
+      // rien ne part. Le poste serait resté réservé à un joueur remboursé, sur
+      // un stock très limité, sans aucun chemin pour le rendre au stock.
+      if (!rented && isRentalPaid(reg.pcRental) && body?.confirm !== true) {
+        return NextResponse.json(
+          {
             error:
-              `Cette location a été réglée à la billetterie${quoi}. ` +
-              `Elle ne se retire pas d’ici : si le joueur annule, rembourse la ` +
-              `ligne sur HelloAsso puis relis les commandes — la location ` +
-              `disparaîtra d’elle-même.`,
+              `Cette location a été réglée ${(reg.pcRental?.amountCents ?? 0) / 100} € à la ` +
+              `billetterie (commande ${reg.pcRental?.orderId ?? '—'}). La retirer ici ne ` +
+              `rembourse personne : fais-le seulement si le remboursement est fait ou ` +
+              `convenu. Confirme pour rendre le poste au stock.`,
+            needsConfirm: true,
           },
           { status: 409 }
         );
@@ -614,7 +634,25 @@ export async function PATCH(req: NextRequest) {
         targetType: 'user',
         targetId: target,
         targetLabel: reg.tmDisplayName ?? target,
-        metadata: { rented, label: rawLabel || null },
+        // Ce qui est retiré est journalisé en entier : c'est justement le lien
+        // avec l'argent encaissé que l'incident du 12 août avait fait perdre.
+        // Si le retrait était une erreur, tout se retrouve ici.
+        metadata: {
+          rented,
+          label: rawLabel || null,
+          ...(rented
+            ? {}
+            : {
+                retire: reg.pcRental
+                  ? {
+                      itemId: reg.pcRental.itemId ?? null,
+                      orderId: reg.pcRental.orderId ?? null,
+                      label: reg.pcRental.label ?? null,
+                      amountCents: reg.pcRental.amountCents ?? 0,
+                    }
+                  : null,
+              }),
+        },
       });
       return NextResponse.json({ ok: true, rented });
     }

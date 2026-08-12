@@ -150,18 +150,42 @@ const MONEY_BACK_STATES: Record<string, string> = {
  * place dans la foulée.
  */
 function moneyBackFor(order: HelloAssoOrder, itemId: number): string | null {
-  const items = order.items ?? [];
+  // Ce qui pourrait être remboursé, et qui ouvre un droit : les dons et la
+  // contribution volontaire à HelloAsso sont des lignes de commande comme les
+  // autres. Les compter faisait passer un panier généreux (« ma place + 5 € à
+  // l'asso ») pour une commande à plusieurs lignes, donc ambiguë — et le
+  // remboursement devenait invisible.
+  const lignesDeDroit = (order.items ?? []).filter(
+    // `isDonationLike` raisonne sur la ligne MISE À PLAT : le libellé s'appelle
+    // `name` sur l'objet brut de HelloAsso, pas `tierLabel`.
+    (i) => !isDonationLike({ type: i.type ?? '', tierLabel: i.name ?? i.tierDescription ?? '' })
+  );
+
   for (const p of order.payments ?? []) {
     const label = MONEY_BACK_STATES[String(p.state ?? '')];
     if (!label) continue;
 
-    const ventile = p.items ?? [];
-    if (ventile.length > 0) {
-      if (ventile.some((s) => Number(s.id ?? 0) === itemId)) return label;
+    // La ventilation ne vaut que si elle porte des identifiants exploitables :
+    // une liste présente mais sans `id` ne désigne rien, et s'en remettre à elle
+    // faisait taire le remboursement au lieu de retomber sur le raisonnement
+    // par élimination.
+    const designes = (p.items ?? [])
+      .map((s) => Number(s.id ?? 0))
+      .filter((id) => id > 0);
+    if (designes.length > 0) {
+      if (designes.includes(itemId)) return label;
       continue;
     }
-    // Pas de ventilation : on ne peut trancher que si le doute n'existe pas.
-    if (items.length <= 1) return label;
+
+    // Sans ventilation exploitable : on tranche si le doute n'existe pas…
+    if (lignesDeDroit.length <= 1) return label;
+
+    // …et sinon on le DIT. Se taire était le pire des deux maux : un
+    // remboursement existe sur cette commande, l'organisation doit le savoir,
+    // même si le code ne peut pas désigner la ligne. Rien n'est retiré
+    // automatiquement — la porte `moneyBack` de `decideItem` ne produit qu'une
+    // décision humaine.
+    return `${label} sur cette commande (ligne non identifiée)`;
   }
   return null;
 }
@@ -520,9 +544,25 @@ export function decideItem(item: OrderItemView, ctx: DecideContext): Outcome {
   }
 
   if (item.ticket === 'pc_rental') {
-    return registration.status === 'cancelled'
-      ? { kind: 'needs_review', reason: 'Location de poste d’une inscription retirée' }
-      : { kind: 'pc_rental', uid: registration.uid };
+    if (registration.status === 'cancelled') {
+      return { kind: 'needs_review', reason: 'Location de poste d’une inscription retirée' };
+    }
+    // Le dossier ne retient qu'UNE location. Un joueur qui loue une tour ET un
+    // écran verrait donc le second article écraser le premier, et l'organisation
+    // ne préparerait que la moitié du matériel. Tant que la structure n'en porte
+    // qu'une, on refuse d'écraser et on le dit.
+    if (
+      registration.pcRentalItemId != null &&
+      registration.pcRentalItemId !== item.itemId
+    ) {
+      return {
+        kind: 'needs_review',
+        reason:
+          `Seconde location sur ce dossier (« ${item.tierLabel} ») : la première ` +
+          `reste enregistrée. À préparer EN PLUS le jour J — note-le sur le dossier.`,
+      };
+    }
+    return { kind: 'pc_rental', uid: registration.uid };
   }
 
   // À partir d'ici : le règlement d'une inscription joueur.
@@ -692,9 +732,19 @@ export function isOutcomeAlreadyApplied(
  * d'organisation ne change cela.
  */
 export function manualDecisionWins(
-  prev: { source?: string; matchedUid?: string | null } | undefined,
-  next: Outcome
+  prev: { source?: string; matchedUid?: string | null; moneyBack?: string | null } | undefined,
+  next: Outcome,
+  item?: { moneyBack?: string | null }
 ): boolean {
   if (!prev || prev.source !== 'manual' || !prev.matchedUid) return false;
+  // L'argent a bougé chez HelloAsso depuis la décision humaine : ce n'est plus
+  // l'incertitude que l'organisation avait tranchée, c'est un fait nouveau.
+  //
+  // Sans cette clause, la protection avalait l'alerte de remboursement — et
+  // précisément sur les dossiers rattachés à la main, c'est-à-dire ceux dont le
+  // code était illisible. La place restait occupée par de l'argent reparti, la
+  // console affichait toujours « rattaché » en vert, et personne n'était
+  // prévenu. Le commentaire ci-dessus le promettait déjà ; il était faux.
+  if ((item?.moneyBack ?? null) !== (prev.moneyBack ?? null)) return false;
   return next.kind === 'unmatched' || next.kind === 'needs_review';
 }

@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createNotification } from '@/lib/notifications';
 import {
+  alerterPlaceLiberee,
   alerterPlacePrise,
   donnerRoleInscrit,
   estDossierDeTest,
@@ -241,7 +242,7 @@ async function writeOutcome(
     // rattachement manuel (un code recopié de travers chez HelloAsso) persiste,
     // donc chaque passage reproduirait le même « je ne sais pas » et effacerait
     // la décision — en réveillant l'organisation au passage.
-    if (manualDecisionWins(prev, outcome)) return false;
+    if (manualDecisionWins(prev, outcome, item)) return false;
 
     const reg = regSnap?.data() as ManiaCupRegistration | undefined;
     const isReplay =
@@ -547,6 +548,17 @@ async function notifyRevoked(
   if (!admins || admins.empty) return;
 
   const qui = item.participantName || item.payerName || 'inscrit inconnu';
+
+  // Le salon staff annonce les places qui partent : il doit annoncer celles qui
+  // reviennent. La liste d'attente n'avance que sur un geste humain.
+  await alerterPlaceLiberee(db, {
+    qui,
+    uid: outcome.uid,
+    motif: outcome.reason,
+    quoi:
+      outcome.what === 'player' ? 'place' : outcome.what === 'pc_rental' ? 'location' : 'accompagnant',
+  }).catch(() => {});
+
   const title = 'Mania Cup — règlement défait';
   const message = `${qui} perd ${quoi} : ${outcome.reason} (${amount} €)`;
 

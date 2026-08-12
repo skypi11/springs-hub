@@ -75,6 +75,8 @@ export type ActionBody = {
   pcRental?: boolean;
   /** Le matériel convenu, quand la location est notée à la main. */
   label?: string;
+  /** Geste explicite exigé pour retirer une location réglée à la billetterie. */
+  confirm?: boolean;
   seat?: string;
   message?: string;
 };
@@ -732,6 +734,7 @@ export function MaterielLoue({
   pending: boolean;
 }) {
   const [saisie, setSaisie] = useState<string | null>(null);
+  const [confirmeRetrait, setConfirmeRetrait] = useState(false);
   const rental = r.pcRental;
   const regle = rental?.itemId != null;
 
@@ -755,10 +758,48 @@ export function MaterielLoue({
         {regle ? (
           <>
             <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
-              Réglé à la billetterie. Pour annuler : rembourse la ligne sur
-              HelloAsso, puis « Relire les commandes » — la location partira d’elle-même.
+              Réglé à la billetterie.
             </p>
             {rental.orderId != null && <NumeroCommande orderId={rental.orderId} />}
+            {/* Retirer reste possible — le joueur peut être remboursé — mais
+                jamais d'un clic : c'est ce clic-là qui a effacé une location de
+                90 € le 12 août. Deux temps, et le motif est journalisé. */}
+            {confirmeRetrait ? (
+              <div className="space-y-2 border border-[#FFB800]/30 bg-[#FFB800]/5 p-2">
+                <p className="text-xs" style={{ color: 'var(--s-gold)' }}>
+                  Le poste repart au stock. Cela ne rembourse personne — à faire
+                  seulement si le remboursement est fait ou convenu.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    disabled={pending}
+                    onClick={() => {
+                      onAct({ uid: r.uid, action: 'set_pc_rental', pcRental: false, confirm: true });
+                      setConfirmeRetrait(false);
+                    }}
+                    className="inline-flex items-center gap-1 border border-[#FFB800]/40 px-2 py-1 text-xs text-[#FFB800] hover:bg-[#FFB800]/10 disabled:opacity-40"
+                  >
+                    {pending ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}
+                    Confirmer le retrait
+                  </button>
+                  <button
+                    onClick={() => setConfirmeRetrait(false)}
+                    className="px-2 py-1 text-xs"
+                    style={{ color: 'var(--s-text-dim)' }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmeRetrait(true)}
+                className="text-xs underline"
+                style={{ color: 'var(--s-text-dim)' }}
+              >
+                Retirer cette location
+              </button>
+            )}
           </>
         ) : (
           <>

@@ -7,6 +7,7 @@ import { writeAdminAuditLog } from '@/lib/admin-audit-log';
 import { createNotification } from '@/lib/notifications';
 import { sendManiaCupDM } from '@/lib/discord-bot';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { alerterPlacePrise, donnerRoleInscrit } from '@/lib/mania-cup-alerts';
 import {
   MANIA_CUP_REGISTRATIONS,
   MAX_COMPANIONS,
@@ -415,6 +416,21 @@ export async function POST(req: NextRequest) {
       // lui-même — après avoir cru, souvent, que son paiement s'était perdu.
       if (result.kind === 'player') {
         await notifyPlayerPaidManually(db, targetUid, result.discordId).catch(() => {});
+        // …et le reste du chemin automatique, qui manquait ici : le salon staff
+        // annonce les places qui partent, et le joueur reçoit son rôle sur le
+        // Discord de Springs. Une place confirmée à la main n'apparaissait donc
+        // nulle part, et son titulaire n'avait pas accès aux salons.
+        const [reglees, settings] = await Promise.all([
+          db.collection(MANIA_CUP_REGISTRATIONS).where('status', '==', 'confirmed').count().get(),
+          getManiaCupSettings(db),
+        ]);
+        await alerterPlacePrise(db, {
+          qui: result.label ?? targetUid,
+          uid: targetUid,
+          placesReglees: reglees.data().count,
+          placesTotales: settings.maxPlayers,
+        }).catch(() => {});
+        await donnerRoleInscrit(db, targetUid).catch(() => {});
       }
 
       await writeAdminAuditLog(db, {

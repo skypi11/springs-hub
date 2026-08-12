@@ -155,14 +155,39 @@ describe('parseOrder — l’état de l’ARGENT, pas seulement celui de la lign
     expect(items.find((i) => i.itemId === 6001)?.moneyBack).toBe('remboursé');
   });
 
-  it('n’accuse pas au hasard quand la ventilation manque', () => {
+  it('dit son ignorance quand la ventilation manque, au lieu de se taire', () => {
     // Sans ventilation, un remboursement sur une commande à deux lignes ne dit
-    // pas laquelle est concernée : on se tait plutôt que de désigner la mauvaise.
+    // pas laquelle est concernée. Se taire serait le pire des deux maux : de
+    // l'argent est reparti, l'organisation doit le savoir. Rien n'est retiré
+    // automatiquement — la porte de `decideItem` ne produit qu'une alerte.
     const items = parseOrder(
       order({ items: [playerItem(), rentalItem], payments: [{ id: 1, state: 'Refunded' }] }),
       OPTS
     );
-    expect(items.every((i) => i.moneyBack == null)).toBe(true);
+    expect(items.every((i) => /ligne non identifiée/.test(i.moneyBack ?? ''))).toBe(true);
+  });
+
+  it('ne compte pas un don comme une ligne qui sème le doute', () => {
+    // « ma place + 5 € à l'asso » n'est pas une commande ambiguë : le don
+    // n'ouvre aucun droit. Le compter rendait le remboursement invisible.
+    const [item] = parseOrder(
+      order({
+        items: [playerItem(), { id: 7001, amount: 500, name: 'Don à l’association', type: 'Donation' }],
+        payments: [{ id: 1, state: 'Refunded' }],
+      }),
+      OPTS
+    );
+    expect(item.moneyBack).toBe('remboursé');
+  });
+
+  it('retombe sur le raisonnement par élimination si la ventilation ne désigne rien', () => {
+    // Une ventilation présente mais sans identifiant exploitable ne désigne
+    // aucune ligne : s'en remettre à elle faisait taire le remboursement.
+    const [item] = parseOrder(
+      order({ items: [playerItem()], payments: [{ id: 1, state: 'Refunded', items: [{ shareAmount: 3000 }] }] }),
+      OPTS
+    );
+    expect(item.moneyBack).toBe('remboursé');
   });
 
   it('tranche quand même si la commande n’a qu’une ligne', () => {
@@ -933,6 +958,26 @@ describe('manualDecisionWins — une relecture ne défait pas ce qu’un humain 
         what: 'player',
       })
     ).toBe(false);
+  });
+
+  it('s’efface aussi quand l’argent repart sans que la ligne bouge', () => {
+    // Le cas du remboursement sans annulation de commande : la décision reste
+    // « needs_review », donc la protection l'avalait — et sur les dossiers
+    // rattachés à la main, c'est-à-dire ceux dont le code était illisible, la
+    // place restait occupée par de l'argent reparti, sans alerte.
+    expect(
+      manualDecisionWins(
+        manual,
+        { kind: 'needs_review', reason: 'Règlement remboursé' },
+        { moneyBack: 'remboursé' }
+      )
+    ).toBe(false);
+  });
+
+  it('protège toujours tant que rien n’a bougé chez HelloAsso', () => {
+    expect(
+      manualDecisionWins(manual, { kind: 'unmatched', reason: 'Code illisible' }, { moneyBack: null })
+    ).toBe(true);
   });
 
   it('s’efface devant une reconnaissance aboutie', () => {

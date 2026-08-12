@@ -142,6 +142,41 @@ export async function alerterPlacePrise(
   }
 }
 
+/**
+ * Un siège revient à la vente : le salon qui annonce les places qui PARTENT
+ * doit annoncer celles qui reviennent.
+ *
+ * Sans ça, une place libérée par un remboursement n'existait nulle part : la
+ * liste d'attente n'avance que si quelqu'un clique « Passer au suivant », et
+ * personne ne savait qu'il fallait le faire.
+ */
+export async function alerterPlaceLiberee(
+  db: Firestore,
+  e: EvenementInscription & { motif: string; quoi: 'place' | 'location' | 'accompagnant' }
+): Promise<void> {
+  if (await estDossierDeTest(db, e.uid)) return;
+
+  const { staffChannelId } = await getManiaCupSettings(db);
+  if (!staffChannelId) return;
+
+  const quoi =
+    e.quoi === 'place'
+      ? 'sa place'
+      : e.quoi === 'location'
+        ? 'sa location de poste'
+        : 'un billet accompagnant';
+  const rappel =
+    e.quoi === 'place'
+      ? ' · un siège est à réattribuer — pense à la liste d’attente'
+      : '';
+
+  await posterDansSalon(
+    staffChannelId,
+    `↩️ **${e.qui}** perd ${quoi} — ${e.motif}.${rappel}\n` +
+      `« Annulé » chez HelloAsso ne prouve pas que l’argent est reparti : vérifie la commande avant d’inviter quelqu’un d’autre.`
+  ).catch(() => ({ ok: false }));
+}
+
 export type ResultatRole =
   | { ok: true }
   | { ok: false; raison: 'role_non_configure' | 'pas_de_discord' | 'pas_membre' | 'role_introuvable' | 'erreur' };

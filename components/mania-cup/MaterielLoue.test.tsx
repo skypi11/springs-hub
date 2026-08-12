@@ -62,12 +62,27 @@ describe('MaterielLoue', () => {
     expect(screen.getByText('189031974')).toBeInTheDocument();
   });
 
-  it('n’offre AUCUN moyen d’effacer une location réglée', () => {
-    // Le cœur du fix : plus aucun contrôle de cet écran ne peut défaire un
-    // règlement encaissé. Il se défait chez HelloAsso, par un remboursement.
+  it('n’efface JAMAIS une location réglée en un clic', () => {
+    // Le cœur du fix : c'est un clic unique qui a effacé 90 € le 12 août.
+    // Retirer reste possible — un joueur peut être remboursé — mais il faut le
+    // demander deux fois.
     const { onAct } = setup({ itemId: 198968963, orderId: 189031974, amountCents: 9000, label: 'LOCATION PC FIXE' });
-    for (const bouton of screen.queryAllByRole('button')) fireEvent.click(bouton);
+    fireEvent.click(screen.getByText('Retirer cette location'));
     expect(onAct).not.toHaveBeenCalled();
+  });
+
+  it('mais laisse une issue quand le joueur a été remboursé', () => {
+    // Sans elle, un poste resterait réservé pour toujours à un joueur remboursé :
+    // un remboursement sans annulation de commande ne défait rien tout seul.
+    const { onAct } = setup({ itemId: 198968963, orderId: 189031974, amountCents: 9000, label: 'LOCATION PC FIXE' });
+    fireEvent.click(screen.getByText('Retirer cette location'));
+    fireEvent.click(screen.getByText('Confirmer le retrait'));
+    expect(onAct).toHaveBeenCalledWith({
+      uid: 'discord_1',
+      action: 'set_pc_rental',
+      pcRental: false,
+      confirm: true,
+    });
   });
 
   it('laisse retirer une location notée par l’organisation', () => {
