@@ -259,6 +259,32 @@ export function getGameBySlug(slug: string | null | undefined): GameDef | undefi
   return ALL_GAME_DEFS.find(g => g.slug === slug);
 }
 
+/**
+ * Combien de joueurs une équipe de ce jeu peut aligner — `null` = pas de plafond.
+ *
+ * `roster.titulaires` ne suffit PAS à répondre : pour un jeu solo comme
+ * Trackmania il vaut 1, ce qui décrit le format d'une course, pas la taille
+ * d'une écurie. `allowSolo` dit précisément que l'effectif est libre.
+ *
+ * Cette fonction existe parce que la règle était recopiée à chaque usage, et
+ * qu'un seul de ces endroits l'a oubliée : l'onglet Équipes calculait
+ * « je peux ajouter tant que joueurs < titulaires » sans regarder `allowSolo`.
+ * Une écurie Trackmania était donc bloquée à UN pilote — et à ZÉRO remplaçant,
+ * puisque `0 < 0` est faux. Le serveur, lui, autorisait déjà l'effectif libre :
+ * seul l'écran interdisait.
+ *
+ * Un plafond technique demeure côté serveur (50 titulaires, 30 remplaçants) :
+ * il protège le document Firestore, il ne dit rien du format du jeu.
+ */
+export function getRosterCaps(id: string | null | undefined): {
+  titulaires: number | null;
+  remplacants: number | null;
+} {
+  const r = getGame(id)?.roster;
+  if (!r || r.allowSolo) return { titulaires: null, remplacants: null };
+  return { titulaires: r.titulaires, remplacants: r.remplacants };
+}
+
 /** Vérifie si un jeu supporte une feature donnée (rankVerification, replayParsing, etc.) */
 export function gameHasFeature(id: string | null | undefined, feature: keyof GameFeatureFlags): boolean {
   return getGame(id)?.features[feature] ?? false;

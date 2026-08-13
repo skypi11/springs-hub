@@ -18,7 +18,7 @@ import type { TeamData, MyStructure, DiscordChannel } from '../types';
 import { SectionPanel, RosterSlot, StaffRosterSlot } from '../components';
 import { SortableTeam, SortableGroup, GroupDropZone } from '../teams-dnd';
 import GameTag from '@/components/games/GameTag';
-import { getGame, getGameColor, ALL_GAME_DEFS } from '@/lib/games-registry';
+import { getGame, getGameColor, getRosterCaps, ALL_GAME_DEFS } from '@/lib/games-registry';
 
 // Collision detection cloisonnée pour le D&D des équipes : un groupe ne peut
 // cibler qu'un autre groupe, une équipe qu'une autre équipe ou une zone de
@@ -213,11 +213,12 @@ export function TeamsTab(props: TeamsTabProps) {
     const availableForStaff = s.members.filter(m =>
       m.game === team.game && !assignedIds.includes(m.userId)
     );
-    // Limites roster dérivées de la registry : marche pour RL (3+2), TM (1+0),
-    // et tout nouveau jeu ajouté (ex. Val 5+2). Jeu inconnu = pas de limite.
-    const rosterDef = getGame(team.game)?.roster;
-    const canAddPlayer = !rosterDef || team.players.length < rosterDef.titulaires;
-    const canAddSub = !rosterDef || team.subs.length < rosterDef.remplacants;
+    // Plafonds d'effectif dérivés de la registry : RL 3+2, Valorant 5+2, et
+    // AUCUN plafond pour un jeu solo comme Trackmania — une écurie y aligne
+    // autant de pilotes qu'elle veut. Jeu inconnu = pas de limite non plus.
+    const caps = getRosterCaps(team.game);
+    const canAddPlayer = caps.titulaires === null || team.players.length < caps.titulaires;
+    const canAddSub = caps.remplacants === null || team.subs.length < caps.remplacants;
     const captainId = team.captainId ?? null;
     const canManageTeam = isAdminOfActive;
     const canDeleteTeam = isFounderOfActive;
@@ -653,7 +654,7 @@ export function TeamsTab(props: TeamsTabProps) {
               canAdd={canAddPlayer && !isArchived}
               loading={teamActionLoading === `${team.id}_playerIds`}
               captainId={captainId}
-              capacity={rosterDef && !rosterDef.allowSolo ? rosterDef.titulaires : undefined}
+              capacity={caps.titulaires ?? undefined}
               emptyLabel="un titulaire"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', [...team.players.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'playerIds', team.players.filter(p => p.uid !== uid).map(p => p.uid))}
@@ -665,7 +666,7 @@ export function TeamsTab(props: TeamsTabProps) {
               available={availableForRoster}
               canAdd={canAddSub && !isArchived}
               loading={teamActionLoading === `${team.id}_subIds`}
-              capacity={rosterDef && !rosterDef.allowSolo ? rosterDef.remplacants : undefined}
+              capacity={caps.remplacants ?? undefined}
               emptyLabel="un remplaçant"
               onAdd={(uid) => handleUpdateTeamRoster(team.id, 'subIds', [...team.subs.map(p => p.uid), uid])}
               onRemove={(uid) => handleUpdateTeamRoster(team.id, 'subIds', team.subs.filter(p => p.uid !== uid).map(p => p.uid))}

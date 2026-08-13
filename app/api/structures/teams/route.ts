@@ -8,7 +8,7 @@ import { createNotification, createNotifications, type NotificationPayload } fro
 import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
 import { extractR2Key, deleteFileSilent } from '@/lib/storage';
 import { canManageTeams, structureContext } from '@/lib/structure-permissions';
-import { getGame, getGameLabel } from '@/lib/games-registry';
+import { getGameLabel, getRosterCaps } from '@/lib/games-registry';
 
 // Lit la structure + vérifie que l'user a le droit "admin" (dirigeant ou
 // responsable). Utilise canManageTeams() comme source de vérité.
@@ -324,17 +324,15 @@ export async function POST(req: NextRequest) {
         // label optionnel au niveau API pour compat ascendante ; l'UX l'impose.
         const labelStr = typeof label === 'string' ? label.trim() : '';
 
-        // Vérifier les limites de roster selon le jeu (registry).
-        // Jeu solo (allowSolo, ex. TM) → pas de limite stricte appliquée ici.
+        // Plafonds d'effectif du jeu — `null` pour un jeu solo (Trackmania),
+        // dont les écuries n'ont pas de taille imposée.
         {
-          const r = getGame(game)?.roster;
-          if (r && !r.allowSolo) {
-            if ((playerIds || []).length > r.titulaires) {
-              return NextResponse.json({ error: `Max ${r.titulaires} titulaires pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
-            }
-            if ((subIds || []).length > r.remplacants) {
-              return NextResponse.json({ error: `Max ${r.remplacants} remplaçants pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
-            }
+          const caps = getRosterCaps(game);
+          if (caps.titulaires !== null && (playerIds || []).length > caps.titulaires) {
+            return NextResponse.json({ error: `Max ${caps.titulaires} titulaires pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
+          }
+          if (caps.remplacants !== null && (subIds || []).length > caps.remplacants) {
+            return NextResponse.json({ error: `Max ${caps.remplacants} remplaçants pour une équipe ${getGameLabel(game)}.` }, { status: 400 });
           }
         }
 
@@ -411,16 +409,14 @@ export async function POST(req: NextRequest) {
 
         const teamGame = game || teamData.game;
 
-        // Vérifier les limites de roster selon le jeu (registry).
+        // Mêmes plafonds qu'à la création, lus à la même source.
         {
-          const r = getGame(teamGame)?.roster;
-          if (r && !r.allowSolo) {
-            if (playerIds && playerIds.length > r.titulaires) {
-              return NextResponse.json({ error: `Max ${r.titulaires} titulaires pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
-            }
-            if (subIds && subIds.length > r.remplacants) {
-              return NextResponse.json({ error: `Max ${r.remplacants} remplaçants pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
-            }
+          const caps = getRosterCaps(teamGame);
+          if (caps.titulaires !== null && playerIds && playerIds.length > caps.titulaires) {
+            return NextResponse.json({ error: `Max ${caps.titulaires} titulaires pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
+          }
+          if (caps.remplacants !== null && subIds && subIds.length > caps.remplacants) {
+            return NextResponse.json({ error: `Max ${caps.remplacants} remplaçants pour une équipe ${getGameLabel(teamGame)}.` }, { status: 400 });
           }
         }
 

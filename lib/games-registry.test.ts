@@ -13,6 +13,7 @@ import {
   getGameSlug,
   getGameBySlug,
   gameHasFeature,
+  getRosterCaps,
   isKnownGame,
 } from './games-registry';
 
@@ -191,6 +192,36 @@ describe('getGameBySlug', () => {
   it('undefined si slug inconnu', () => {
     expect(getGameBySlug('xxx')).toBeUndefined();
     expect(getGameBySlug(null)).toBeUndefined();
+  });
+});
+
+describe('getRosterCaps', () => {
+  // Une structure Trackmania arrivée sur Aedral ne pouvait mettre qu'UN joueur
+  // par équipe, et aucun remplaçant. `roster.titulaires` vaut 1 pour TM — c'est
+  // le format d'une course, pas la taille d'une écurie —, et l'onglet Équipes
+  // s'en servait comme d'un plafond sans regarder `allowSolo`.
+
+  it('n’impose aucun effectif à un jeu solo', () => {
+    expect(getRosterCaps('trackmania')).toEqual({ titulaires: null, remplacants: null });
+  });
+
+  it('garde les effectifs des jeux qui en ont un', () => {
+    expect(getRosterCaps('rocket_league')).toEqual({ titulaires: 3, remplacants: 2 });
+    expect(getRosterCaps('valorant')).toEqual({ titulaires: 5, remplacants: 2 });
+  });
+
+  it('ne plafonne pas un jeu inconnu', () => {
+    // Mieux vaut laisser passer que bloquer une structure sur un jeu qu'on
+    // vient d'ajouter : le serveur garde de toute façon sa borne technique.
+    expect(getRosterCaps('lol')).toEqual({ titulaires: null, remplacants: null });
+    expect(getRosterCaps(null)).toEqual({ titulaires: null, remplacants: null });
+  });
+
+  it('tout jeu solo de la registry est sans plafond', () => {
+    // Verrouille l'invariant pour les jeux à venir, pas seulement pour TM.
+    for (const g of ALL_GAME_DEFS.filter((d) => d.roster.allowSolo)) {
+      expect(getRosterCaps(g.id)).toEqual({ titulaires: null, remplacants: null });
+    }
   });
 });
 
