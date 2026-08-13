@@ -190,7 +190,13 @@ export function GeneralTab(props: GeneralTabProps) {
                           {g.label}
                         </p>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--s-text-muted)' }}>
-                          {g.shortLabel} · {g.roster.allowSolo ? 'Solo' : `${g.roster.titulaires}v${g.roster.titulaires}`}
+                          {/* Sur un jeu solo, « Solo » se lisait comme « une
+                              personne par équipe » : c'est le format de course,
+                              pas la taille de l'écurie, qui n'a pas de limite. */}
+                          {g.shortLabel} ·{' '}
+                          {g.roster.allowSolo
+                            ? 'effectif libre'
+                            : `${g.roster.titulaires}v${g.roster.titulaires}`}
                         </p>
                       </div>
                       {active && (
