@@ -67,3 +67,8 @@ tmp/
 
 # Gabarits ManiaPub (1 Mo chacun, assets en base64) — regénérés par build_maniapub.py
 scripts/affiche-mania-cup/maniapub-*.html
+
+# Scripts d'inspection jetables (lecture Firestore, diagnostic ponctuel).
+# Deux fois en une journée ils sont partis dans un commit avec `git add -A` :
+# les ignorer coûte moins cher que de s'en souvenir.
+tmp-*.mjs
