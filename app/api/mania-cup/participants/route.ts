@@ -4,6 +4,7 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { canViewHiddenCompetition } from '@/lib/competitions/visibility';
 import { getManiaCupSettings } from '@/lib/mania-cup-settings';
+import { lireAppartenancesTM } from '@/lib/mania-cup-server';
 import {
   MANIA_CUP_REGISTRATIONS,
   isManiaCupPublic,
@@ -59,12 +60,19 @@ export async function GET(req: NextRequest) {
       profils.map((p) => [p.id, (p.data()?.country as string) || ''])
     );
 
+    // La structure du joueur, s'il en a une. Nom et logo sont déjà publics —
+    // l'annuaire des structures les montre à tout le monde. Les équipes, elles,
+    // n'ont rien à faire ici : on ne les lit même pas.
+    const appartenances = await lireAppartenancesTM(db, profils, { avecEquipe: false });
+
     const participants: PublicRegistration[] = snap.docs.map((d) => {
       const r = d.data() as ManiaCupRegistration;
+      const app = appartenances.get(d.id);
       return {
         tmDisplayName: r.tmDisplayName || '—',
         countryCode: paysParUid.get(d.id) || r.countryCode || 'OTHER',
         status: r.status,
+        structure: app ? { name: app.structure, logoUrl: app.logoUrl } : null,
       };
     });
 

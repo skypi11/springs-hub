@@ -17,6 +17,8 @@ type Participant = {
   tmDisplayName: string;
   countryCode: string;
   status: 'pending_payment' | 'confirmed' | 'cancelled';
+  /** La structure du joueur sur Aedral, quand il en a une. */
+  structure: { name: string; logoUrl: string | null } | null;
 };
 
 type Payload = {
@@ -82,6 +84,27 @@ export default function InscritsPage() {
                     <span className="min-w-0 flex-1 truncate font-semibold">
                       {p.tmDisplayName}
                     </span>
+                    {/* La structure du joueur : c'est ce qui fait voir qu'un
+                        club se déplace à plusieurs, et ça donne aux structures
+                        une raison de plus d'amener leurs pilotes. */}
+                    {p.structure && (
+                      <span
+                        className="hidden min-w-0 shrink items-center gap-2 sm:flex"
+                        title={p.structure.name}
+                      >
+                        {p.structure.logoUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.structure.logoUrl}
+                            alt=""
+                            className="h-6 w-6 shrink-0 rounded-[3px] bg-[#9a9aa8] object-contain p-[1px]"
+                          />
+                        )}
+                        <span className="truncate text-sm text-[#c9c5d8]">
+                          {p.structure.name}
+                        </span>
+                      </span>
+                    )}
                     {p.status === 'pending_payment' && (
                       <span className="shrink-0 border border-[#FFB800]/40 px-2 py-0.5 text-xs text-[#FFB800]">
                         en attente

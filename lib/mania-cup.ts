@@ -483,6 +483,11 @@ export interface PublicRegistration {
   tmDisplayName: string;
   countryCode: string;
   status: RegistrationStatus;
+  /**
+   * La structure du joueur, quand il en a une sur Aedral. Le nom et le logo
+   * sont déjà publics — c'est ce que montre l'annuaire des structures.
+   */
+  structure: { name: string; logoUrl: string | null } | null;
 }
 
 /** Âge du joueur le premier jour de la LAN. */

@@ -208,7 +208,7 @@ export default function AdminManiaCupPage() {
    *  qui reste lisible si le réseau tombe. */
   function exportRoster() {
     const header = [
-      'Nom', 'Prénom', 'Pseudo Trackmania', 'Écurie', 'Équipe', 'Code', 'Réglé', 'Âge', 'Mineur',
+      'Nom', 'Prénom', 'Pseudo Trackmania', 'Structure', 'Équipe', 'Code', 'Réglé', 'Âge', 'Mineur',
       'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Matériel loué',
       'Emplacement', 'Droit à l’image', 'E-mail', 'Téléphone', 'Contact d’urgence',
     ];
@@ -501,10 +501,12 @@ export default function AdminManiaCupPage() {
                     contenu prévisible sont bornées ; le nom et les étiquettes
                     d'état se partagent le reste. */}
                 <th className="min-w-[150px] py-2.5 pr-4 font-medium">Joueur</th>
-                {/* Une LAN voit arriver des écuries, pas seulement des
-                    individus : savoir que trois inscrits viennent du même club
-                    change l'accueil, le placement en salle et les badges. */}
-                <th className="w-44 py-2.5 pr-4 font-medium">Écurie</th>
+                {/* Une LAN voit arriver des clubs, pas seulement des individus :
+                    savoir que trois inscrits viennent de la même structure
+                    change l'accueil, le placement en salle et les badges.
+                    « Structure » est le mot du site — on ne dit pas « écurie »
+                    sur Trackmania. */}
+                <th className="w-44 py-2.5 pr-4 font-medium">Structure</th>
                 <th className="w-52 py-2.5 pr-4 font-medium">Contact</th>
                 <th className="w-32 py-2.5 pr-4 font-medium">Pays</th>
                 <th className="w-20 py-2.5 pr-4 font-medium">Âge</th>

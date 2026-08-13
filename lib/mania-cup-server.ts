@@ -134,8 +134,11 @@ export interface Appartenance {
  */
 export async function lireAppartenancesTM(
   db: Firestore,
-  profils: { id: string; data(): Record<string, unknown> | undefined }[]
+  profils: { id: string; data(): Record<string, unknown> | undefined }[],
+  /** La liste publique n'affiche que la structure : inutile d'y lire les équipes. */
+  options: { avecEquipe?: boolean } = {}
 ): Promise<Map<string, Appartenance>> {
+  const avecEquipe = options.avecEquipe !== false;
   const structureIdsParUid = new Map<string, string[]>();
   const tousLesIds = new Set<string>();
   for (const p of profils) {
@@ -152,9 +155,11 @@ export async function lireAppartenancesTM(
   const [structDocs, teamsSnap] = await Promise.all([
     db.getAll(...Array.from(tousLesIds).map((id) => db.collection('structures').doc(id))),
     // Volume borné : ce sont les équipes Trackmania de TOUT le site, et une
-    // écurie en compte quelques-unes. Le cap évite un balayage incontrôlé si le
-    // jeu décolle.
-    db.collection('sub_teams').where('game', '==', 'trackmania').limit(500).get(),
+    // structure en compte quelques-unes. Le cap évite un balayage incontrôlé si
+    // le jeu décolle.
+    avecEquipe
+      ? db.collection('sub_teams').where('game', '==', 'trackmania').limit(500).get()
+      : null,
   ]);
 
   const structures = new Map(
@@ -169,7 +174,7 @@ export async function lireAppartenancesTM(
   // uid → nom d'équipe. Un joueur n'a qu'une équipe par jeu (règle du site) ;
   // si le cas se présentait quand même, la première rencontrée fait foi.
   const equipeParUid = new Map<string, string>();
-  for (const doc of teamsSnap.docs) {
+  for (const doc of teamsSnap?.docs ?? []) {
     const t = doc.data() as { name?: string; playerIds?: string[]; subIds?: string[]; status?: string };
     if (t.status === 'archived') continue;
     for (const id of [...(t.playerIds ?? []), ...(t.subIds ?? [])]) {

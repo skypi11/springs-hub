@@ -191,7 +191,7 @@ export default function RegistrationRow({
           )}
         </td>
 
-        {/* L'écurie du joueur, quand il en a une sur Aedral. La plupart des
+        {/* La structure du joueur, quand il en a une sur Aedral. La plupart des
             inscrits viennent seuls : la colonne reste alors vide plutôt que de
             fabriquer une appartenance. */}
         <td className="py-3 pr-4 align-middle">
@@ -448,7 +448,7 @@ function Dossier({
           )}
         </Champ>
         {r.appartenance && (
-          <Champ label="Écurie">
+          <Champ label="Structure">
             <div>
               {r.appartenance.tag ? `${r.appartenance.tag} · ` : ''}
               {r.appartenance.structure}
