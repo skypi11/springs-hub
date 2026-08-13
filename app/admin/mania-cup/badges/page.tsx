@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, Printer, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { isItemValid } from '@/lib/helloasso/reconcile';
+import { companionBadgeName } from '@/lib/mania-cup';
 
 // Planche de badges à imprimer.
 //
@@ -37,8 +38,19 @@ type Row = {
   seat: string | null;
   imageConsent: boolean | null;
   registrationCode: string;
-  appartenance: { structure: string; tag: string | null; team: string | null } | null;
-  companions: { name: string; role: string; ticketItemId?: number | null }[];
+  appartenance: {
+    structure: string;
+    tag: string | null;
+    team: string | null;
+    logoUrl: string | null;
+  } | null;
+  companions: {
+    name: string;
+    /** Ce qui s'imprime, si le joueur l'a renseigné. */
+    displayName?: string | null;
+    role: string;
+    ticketItemId?: number | null;
+  }[];
 };
 
 type Payment = {
@@ -60,8 +72,10 @@ interface Badge {
   headline: string;
   /** Ce qui identifie la personne au-delà de son nom. */
   detail: string;
-  /** L'écurie, et son équipe quand il y en a une. Absente pour un solo. */
+  /** L'écurie du joueur. Absente pour qui vient seul. */
   team?: string | null;
+  /** Son logo, si la structure en a téléversé un. */
+  teamLogo?: string | null;
   seat?: string | null;
   code?: string | null;
   noImage?: boolean;
@@ -76,21 +90,77 @@ const CATEGORY: Record<Category, { label: string; color: string }> = {
   staff: { label: 'STAFF', color: '#A66BE8' },
 };
 
+/** Bornes de la taille du nom, en millimètres. */
+const NOM_MAX_MM = 19.5;
+const NOM_MIN_MM = 6.5;
+
 /**
- * Taille du nom, dictée par le MOT LE PLUS LONG et non par la longueur totale.
+ * Le nom, ajusté pour tenir sur UNE SEULE LIGNE.
  *
- * Un nom se coupe entre les mots : « Julien Marchand » et « Martine Dupont »
- * ont presque la même longueur, mais choisir la taille sur le total en mettait
- * un sur deux lignes et l'autre sur une seule. Sur une planche, cette
- * irrégularité saute aux yeux et fait bricolé.
+ * La taille était auparavant DEVINÉE au nombre de caractères. Or les lettres
+ * n'ont pas la même largeur : « G0LI0 » et « YannexTM » font tous deux huit
+ * signes, mais le second porte un T et un M, les deux plus larges de l'alphabet.
+ * Résultat imprimé : le « M » de YannexTM passait seul à la ligne suivante.
+ *
+ * On ne devine donc plus, on MESURE : le texte est posé sans césure possible
+ * (`nowrap`), puis la taille est réduite par dichotomie jusqu'à ce qu'il tienne
+ * dans la largeur du badge. Une dizaine d'essais suffit, et le résultat est
+ * juste quelle que soit la police réellement chargée — c'est précisément ce
+ * qu'une formule ne peut pas garantir.
+ *
+ * `document.fonts.ready` n'est pas un luxe : mesuré avant que Bebas soit
+ * disponible, tout serait calculé sur la police de repli, plus étroite, et les
+ * noms déborderaient à l'impression.
  */
-function nameSize(text: string): string {
-  const words = text.split(/\s+/).filter(Boolean);
-  const longest = words.reduce((m, w) => Math.max(m, w.length), 0);
-  if (text.length <= 8 && longest <= 8) return '19.5mm';
-  if (longest <= 10) return '15.5mm';
-  if (longest <= 13) return '12mm';
-  return '9.8mm';
+function NomAjuste({ texte }: { texte: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let annule = false;
+
+    const ajuster = () => {
+      if (annule) return;
+      // On compare la largeur du TEXTE à celle de sa propre boîte, et non à
+      // celle du parent : le parent compte son padding dans `clientWidth`, ce
+      // qui laissait croire à huit millimètres de place en trop — assez pour
+      // que « YannexTM » sorte du cadre et se fasse rogner par l'overflow.
+      if (el.clientWidth <= 0) return;
+
+      let bas = NOM_MIN_MM;
+      let haut = NOM_MAX_MM;
+      let retenu = NOM_MIN_MM;
+      // Dichotomie : douze passes amènent à moins d'un centième de millimètre.
+      for (let i = 0; i < 12; i++) {
+        const essai = (bas + haut) / 2;
+        el.style.fontSize = `${essai}mm`;
+        if (el.scrollWidth <= el.clientWidth) {
+          retenu = essai;
+          bas = essai;
+        } else {
+          haut = essai;
+        }
+      }
+      el.style.fontSize = `${retenu}mm`;
+    };
+
+    // Les polices d'abord, sinon la mesure porte sur la police de repli.
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      void document.fonts.ready.then(ajuster);
+    } else {
+      ajuster();
+    }
+    return () => {
+      annule = true;
+    };
+  }, [texte]);
+
+  return (
+    <div ref={ref} className="mc-name" style={{ fontSize: `${NOM_MAX_MM}mm` }}>
+      {texte}
+    </div>
+  );
 }
 
 export default function BadgesPage() {
@@ -122,29 +192,40 @@ export default function BadgesPage() {
         key: `p-${r.uid}`,
         category: 'player',
         headline: r.tmDisplayName || civil,
-        detail: civil,
-        // L'écurie, puis son équipe quand elle en a plusieurs : « Nyxar Esport »
-        // seul suffit à un club à une équipe, et personne ne lit deux lignes de
-        // plus sur un badge.
-        team: r.appartenance
-          ? [r.appartenance.structure, r.appartenance.team].filter(Boolean).join(' · ')
-          : null,
+        // PAS d'identité civile ici. Un badge se porte toute la journée, passe
+        // sur les photos et sur le stream : y imprimer le nom d'état civil
+        // l'expose à des inconnus sans que cela serve à personne. Le contrôle
+        // d'identité se fait une seule fois, à l'accueil, sur la liste
+        // d'émargement — qui garde le nom complet. Et si un badge se perd, le
+        // code d'inscription imprimé dessus suffit à retrouver son porteur.
+        detail: '',
+        // L'écurie seule : « Nyxar Esport · Nyxar Main » répétait le mot Nyxar,
+        // et l'équipe ne dit rien à personne un jour de LAN en solo. Elle reste
+        // dans la console et sur l'émargement, là où elle sert au placement.
+        team: r.appartenance?.structure || null,
+        teamLogo: r.appartenance?.logoUrl ?? null,
         seat: r.seat,
         code: r.registrationCode,
         noImage: r.imageConsent === false,
       });
 
       // Un badge par accompagnant dont le billet est réglé : chacun se présente
-      // à l'entrée avec le sien, et le nom imprimé est celui du billet.
+      // à l'entrée avec le sien. Le nom du BILLET reste ce qu'on contrôle ; ce
+      // qui s'imprime, c'est le pseudo choisi par le joueur, ou à défaut le
+      // prénom suivi de l'initiale.
       for (const [i, c] of (r.companions ?? []).entries()) {
         if (c.ticketItemId == null) continue;
         out.push({
           key: `c-${r.uid}-${i}`,
           category: 'companion',
-          headline: c.name,
+          headline: companionBadgeName(c),
           detail: [`Accompagne ${r.tmDisplayName || civil}`, c.role]
             .filter(Boolean)
             .join(' · '),
+          // L'accompagnant porte l'écurie du joueur qu'il accompagne : c'est
+          // avec lui qu'il arrive et qu'il repart.
+          team: r.appartenance?.structure || null,
+          teamLogo: r.appartenance?.logoUrl ?? null,
           code: r.registrationCode,
         });
       }
@@ -439,7 +520,10 @@ export default function BadgesPage() {
           align-items: center;
           justify-content: center;
           gap: 2.93mm;
-          padding: 3.26mm 4.07mm 4.88mm;
+          /* Réserve en bas pour l'écurie, qui est en position absolue : sans
+             elle, un nom long viendrait se poser dessus. */
+          padding: 3.26mm 4.07mm 14mm;
+          position: relative;
         }
         .mc-name {
           font-family: var(--font-display);
@@ -447,7 +531,10 @@ export default function BadgesPage() {
           letter-spacing: 0.012em;
           width: 100%;
           text-align: center;
-          word-break: break-word;
+          /* UNE seule ligne, sans exception : un pseudo coupé en deux (« YannexT »
+             puis « M » tout seul) est un badge raté, et il s'imprime tel quel.
+             La taille est mesurée par NomAjuste jusqu'à ce que le nom tienne. */
+          white-space: nowrap;
           text-shadow: 0 0.65mm 3.26mm rgba(0, 0, 0, 0.55);
         }
         .mc-detail {
@@ -456,16 +543,40 @@ export default function BadgesPage() {
           font-weight: 500;
           text-align: center;
         }
-        /* L'écurie se lit après le nom, sans lui voler la vedette : une seule
-           ligne, jamais deux — la zone du nom est la seule qui absorbe les
-           écarts, et déborder la ferait sortir le pied du cadre à l'impression. */
-        .mc-team {
-          max-width: 100%;
-          font-size: 4.07mm;
+        /* L'écurie est posée AU PIED de la zone, le nom restant centré au-dessus.
+           La réserve en bas de la zone garantit qu'un nom ne vient jamais
+           mordre dessus. */
+        .mc-club {
+          position: absolute;
+          left: 4mm;
+          right: 4mm;
+          bottom: 3.4mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 2.4mm;
+        }
+        .mc-club img {
+          width: 10.5mm;
+          height: 10.5mm;
+          object-fit: contain;
+          flex: 0 0 auto;
+          padding: 0.5mm;
+          /* CARRÉ à coins arrondis, et non rond : un cercle ampute les quatre
+             coins d'un logo carré plein, et l'on ne choisit pas ce que les
+             structures téléversent.
+             Fond GRIS MOYEN, et non blanc : la moitié des logos esport sont
+             blancs sur fond transparent — sur du blanc ils disparaissaient
+             purement et simplement. Un gris moyen fait ressortir les deux
+             extrêmes, le logo sombre comme le logo blanc. */
+          background: #9a9aa8;
+          border-radius: 1.4mm;
+        }
+        .mc-club span {
+          font-size: 4.4mm;
           font-weight: 700;
-          letter-spacing: 0.04em;
-          color: #8fe3a5;
-          text-align: center;
+          letter-spacing: 0.03em;
+          color: #fff;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -568,13 +679,19 @@ function BadgeCard({ badge }: { badge: Badge }) {
         <div className="mc-point" />
 
         <div className="mc-who">
-          <div className="mc-name" style={{ fontSize: nameSize(badge.headline) }}>
-            {badge.headline}
-          </div>
+          <NomAjuste texte={badge.headline} />
           {badge.detail && <div className="mc-detail">{badge.detail}</div>}
           {/* L'écurie : à l'accueil, elle dit d'un coup d'œil que trois
               personnes arrivent ensemble, et à qui les asseoir côte à côte. */}
-          {badge.team && <div className="mc-team">{badge.team}</div>}
+          {badge.team && (
+            <div className="mc-club">
+              {badge.teamLogo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={badge.teamLogo} alt="" />
+              )}
+              <span>{badge.team}</span>
+            </div>
+          )}
           {badge.seat && (
             <div className="mc-seat">
               <span className="k">Place</span>

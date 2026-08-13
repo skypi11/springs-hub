@@ -339,8 +339,17 @@ export interface ManiaCupRegistration {
  * paiement — pas de drapeau séparé qui pourrait le contredire.
  */
 export interface ManiaCupCompanion {
-  /** Nom tel qu'il figurera sur le badge et sur la liste d'émargement. */
+  /**
+   * Le nom porté par le BILLET, tel que HelloAsso l'a enregistré. C'est lui
+   * qu'on contrôle à l'entrée, et il ne se modifie pas depuis le site.
+   */
   name: string;
+  /**
+   * Ce que l'accompagnant veut voir imprimé sur son badge — un pseudo, le plus
+   * souvent. Le joueur le renseigne depuis son espace ; vide, on retombe sur le
+   * prénom suivi de l'initiale. Il ne remplace jamais `name` pour le contrôle.
+   */
+  displayName?: string | null;
   /** Lien avec le joueur : parent, coach, ami… */
   role: string;
   declaredAt?: unknown;
@@ -356,8 +365,49 @@ export interface ManiaCupCompanion {
  */
 export const MAX_COMPANIONS = 3;
 
+/**
+ * Longueur maximale d'un pseudo d'accompagnant.
+ *
+ * Ce n'est pas une limite de base de données, c'est une limite de PAPIER : le
+ * nom s'imprime sur 100 mm de large et se réduit jusqu'à tenir sur une ligne.
+ * Au-delà d'une vingtaine de signes, il devient trop petit pour être lu à trois
+ * mètres — autant le dire à la saisie.
+ */
+export const COMPANION_DISPLAY_NAME_MAX = 20;
+
 export function isCompanionPaid(c: ManiaCupCompanion): boolean {
   return c.ticketItemId != null;
+}
+
+/**
+ * Le nom d'une personne, réduit à ce qu'un badge doit montrer.
+ *
+ * « Jean-Baptiste Delacroix-Fontaine » devient « Jean-Baptiste D. ». Un badge se
+ * porte toute la journée, passe sur les photos et sur le stream : le nom d'état
+ * civil complet y est une donnée personnelle exposée à des inconnus, sans que
+ * cela serve à personne. Le contrôle d'identité, lui, se fait une seule fois à
+ * l'accueil, sur la liste d'émargement — qui garde le nom entier.
+ *
+ * Le dernier mot est traité comme le nom de famille : c'est faux pour une
+ * particule (« de la Fontaine » donne « de la F. »), mais jamais gênant — le
+ * prénom reste lisible, et c'est lui qu'on lit.
+ */
+export function shortenCivilName(complet: string): string {
+  const mots = complet.trim().split(/\s+/).filter(Boolean);
+  if (mots.length <= 1) return mots[0] ?? '';
+  const nom = mots[mots.length - 1];
+  return `${mots.slice(0, -1).join(' ')} ${nom[0].toUpperCase()}.`;
+}
+
+/**
+ * Ce qui s'imprime sur le badge d'un accompagnant.
+ *
+ * Le pseudo choisi par le joueur s'il en a mis un, sinon le prénom suivi de
+ * l'initiale. `name` — le nom du billet — n'est JAMAIS imprimé tel quel : il
+ * reste la donnée de contrôle, sur l'émargement.
+ */
+export function companionBadgeName(c: ManiaCupCompanion): string {
+  return c.displayName?.trim() || shortenCivilName(c.name);
 }
 
 /**

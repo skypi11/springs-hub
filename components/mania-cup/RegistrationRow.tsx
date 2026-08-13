@@ -43,8 +43,19 @@ export type Row = {
   guardianRejectionReason: string | null;
   registrationCode: string;
   /** Écurie et équipe Trackmania du joueur sur Aedral, s'il en a une. */
-  appartenance: { structure: string; tag: string | null; team: string | null } | null;
-  companions: { name: string; role: string; ticketItemId?: number | null }[];
+  appartenance: {
+    structure: string;
+    tag: string | null;
+    team: string | null;
+    logoUrl: string | null;
+  } | null;
+  companions: {
+    name: string;
+    /** Le nom qui s'imprimera sur le badge, choisi par le joueur. */
+    displayName?: string | null;
+    role: string;
+    ticketItemId?: number | null;
+  }[];
   payment: {
     amountCents: number;
     payerName: string;
@@ -494,7 +505,14 @@ function Dossier({
             <ul className="space-y-1.5">
               {r.companions.map((c, i) => (
                 <li key={`${c.name}-${i}`} className="flex flex-wrap items-baseline gap-x-2">
-                  <span>{c.name}</span>
+                  {/* Le badge portera le pseudo ; l'accueil, lui, contrôle le
+                      nom du billet. Les deux doivent donc être lisibles ici. */}
+                  <span>{c.displayName?.trim() || c.name}</span>
+                  {c.displayName?.trim() && (
+                    <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                      billet : {c.name}
+                    </span>
+                  )}
                   <span className="text-xs" style={{ color: 'var(--s-text-dim)' }}>{c.role}</span>
                   {/* Un billet accompagnant ouvre la zone joueurs : savoir s'il
                       est réglé décide de qui entre. */}

@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const SOURCE = 'app/admin/mania-cup/badges/page.tsx';
 const src = readFileSync(SOURCE, 'utf8');
+const LOGO = 'https://pub-058913be9f9f4fa2ac6f4f12bdfaf38a.r2.dev/structures/UXk9VyUBGS9r8wlUMXAV/logo-1786637744760.webp';
 
 const debut = src.indexOf('<style jsx global>{`');
 const fin = src.indexOf('`}</style>', debut);
@@ -33,12 +34,17 @@ const css = src.slice(debut + '<style jsx global>{`'.length, fin);
 // faisait deborder l'ancienne version, parce que la taille se calculait sur la
 // longueur totale au lieu du MOT LE PLUS LONG.
 const CAS = [
-  { cat: 'JOUEUR', couleur: '#00D936', nom: 'G0LI0', detail: 'Trackmania', equipe: 'Nyxar Esport · Nyxar Main', code: 'LAN-7Y6B' },
-  { cat: 'ACCOMPAGNANT', couleur: '#FFB800', nom: 'Jean-Baptiste Delacroix-Fontaine', detail: 'Accompagnant de G0LI0', code: '' },
+  // « YannexTM » est LE cas qui a fait scandale : huit signes comme « G0LI0 »,
+  // mais un T et un M, les deux lettres les plus larges — le M partait seul à la
+  // ligne suivante. La taille se MESURE désormais, elle ne s'estime plus.
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'YannexTM', equipe: 'Nyxar Esport', code: 'LAN-K8W2' },
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'G0LI0', equipe: 'Nyxar Esport', code: 'LAN-7Y6B' },
+  { cat: 'ACCOMPAGNANT', couleur: '#FFB800', nom: 'Jean-Baptiste D.', detail: 'Accompagne G0LI0', equipe: 'Nyxar Esport', code: 'LAN-7Y6B' },
   { cat: 'SPECTATEUR', couleur: '#c6c6d2', nom: 'Bartholomeworthington', detail: '', code: '' },
-  // Le pire cas d'écurie : un nom de club à rallonge ET une équipe. Il doit se
-  // couper proprement, pas pousser le pied du badge hors du cadre.
-  { cat: 'JOUEUR', couleur: '#00D936', nom: 'Fan2SkandeaR', detail: 'Romain Pajot', equipe: 'Association Sportive de Trackmania du Val de Loire · Équipe Compétitive B', code: 'LAN-RJDC' },
+  // Le pire cas d'écurie : un nom de club à rallonge. Il doit se couper
+  // proprement, pas pousser le pied du badge hors du cadre.
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'Fan2SkandeaR', equipe: 'Association Sportive de Trackmania du Val de Loire', code: 'LAN-RJDC' },
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'WWWMMMWWWMMM', equipe: 'Nyxar Esport', code: 'LAN-ZZZZ' },
   { cat: 'STAFF', couleur: '#A66BE8', nom: 'Matt Molines', detail: 'Direction', code: '' },
 ];
 
@@ -58,7 +64,7 @@ const badge = (c) => `
       <div class="mc-who">
         <div class="mc-name" data-nom="${c.nom}">${c.nom}</div>
         ${c.detail ? `<div class="mc-detail">${c.detail}</div>` : ''}
-        ${c.equipe ? `<div class="mc-team">${c.equipe}</div>` : ''}
+        ${c.equipe ? `<div class="mc-club"><img src="${LOGO}" alt=""><span>${c.equipe}</span></div>` : ''}
       </div>
       <div class="mc-meta">
         <span>aedral.com/mania-cup</span>
@@ -79,20 +85,28 @@ const page = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 </style></head><body>
 <div class="badge-sheet">${CAS.map(badge).join('')}</div>
 <script>
-  // La taille du nom depend du MOT le plus long, pas de la longueur totale.
-  function tailleNom(t) {
-    const plusLong = t.split(/\\s+/).reduce((m, w) => Math.max(m, w.length), 0);
-    if (t.length <= 8 && plusLong <= 8) return '19.5mm';
-    if (plusLong <= 10) return '15.5mm';
-    if (plusLong <= 13) return '12mm';
-    return '9.8mm';
+  // MEME algorithme que le composant NomAjuste : on ne devine pas la taille au
+  // nombre de caracteres — un M est bien plus large qu'un I —, on la MESURE par
+  // dichotomie jusqu'a ce que le nom tienne sur une seule ligne.
+  const NOM_MAX = 19.5, NOM_MIN = 6.5;
+  async function ajusterTous() {
+    await document.fonts.ready;
+    for (const el of document.querySelectorAll('.mc-name')) {
+      // La boite DU NOM, pas celle du parent : le parent compte son padding.
+      let bas = NOM_MIN, haut = NOM_MAX, retenu = NOM_MIN;
+      for (let i = 0; i < 12; i++) {
+        const essai = (bas + haut) / 2;
+        el.style.fontSize = essai + 'mm';
+        if (el.scrollWidth <= el.clientWidth) { retenu = essai; bas = essai; } else { haut = essai; }
+      }
+      el.style.fontSize = retenu + 'mm';
+    }
   }
-  for (const el of document.querySelectorAll('.mc-name')) {
-    el.style.fontSize = tailleNom(el.dataset.nom);
-  }
+  const pret = ajusterTous();
 
   window.mesurer = async () => {
     await document.fonts.ready;
+    await pret;
     const mm = 96 / 25.4;
     const out = [];
     for (const b of document.querySelectorAll('.mc-badge')) {
@@ -110,7 +124,14 @@ const page = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
         // Le contenu deborde-t-il de la boite ? C'est LE defaut a traquer.
         deborde: corps.scrollHeight > corps.clientHeight + 1,
         depassement_px: Math.max(0, corps.scrollHeight - corps.clientHeight),
-        nom_deborde: nr.width > corps.clientWidth,
+        // LE controle qui compte, et il porte sur le TEXTE, pas sur sa boite :
+        // avec overflow hidden, un nom rogne a exactement la largeur de son
+        // cadre — mesurer la boite donnait donc toujours « ca rentre », alors
+        // que « YannexTM » sortait visiblement du badge.
+        nom_rogne: nom.scrollWidth > nom.clientWidth + 1,
+        nom_sur_une_ligne:
+          Math.round(nr.height / parseFloat(getComputedStyle(nom).lineHeight || '1')) <= 1,
+        nom_taille_mm: +(parseFloat(nom.style.fontSize) || 0).toFixed(1),
         // L'écurie doit tenir sur UNE ligne et rester dans le cadre : c'est
         // elle qui pousserait le pied dehors si elle se mettait à en prendre deux.
         ecurie: (() => {

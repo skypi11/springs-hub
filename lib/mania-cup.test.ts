@@ -10,6 +10,8 @@ import {
   discordIdFromUid,
   isRentalPaid,
   texteMaterielLoue,
+  shortenCivilName,
+  companionBadgeName,
   MANIA_CUP,
   type GuardianDoc,
   type GuardianDocKind,
@@ -39,6 +41,46 @@ describe('isRentalPaid', () => {
     expect(isRentalPaid({ itemId: 42, amountCents: 9000 })).toBe(true);
     expect(isRentalPaid(null)).toBe(false);
     expect(isRentalPaid(undefined)).toBe(false);
+  });
+});
+
+describe('shortenCivilName', () => {
+  // Un badge se porte toute la journée et passe sur les photos : le nom d'état
+  // civil complet y est une donnée personnelle exposée sans nécessité.
+  it('réduit le nom de famille à son initiale', () => {
+    expect(shortenCivilName('Jean-Baptiste Delacroix-Fontaine')).toBe('Jean-Baptiste D.');
+    expect(shortenCivilName('Charly Leprince')).toBe('Charly L.');
+  });
+
+  it('laisse un prénom seul intact', () => {
+    expect(shortenCivilName('Martine')).toBe('Martine');
+  });
+
+  it('garde tous les prénoms composés', () => {
+    expect(shortenCivilName('Marie Anne Dupont')).toBe('Marie Anne D.');
+  });
+
+  it('survit aux espaces en trop et à une chaîne vide', () => {
+    expect(shortenCivilName('  Paul   Durand  ')).toBe('Paul D.');
+    expect(shortenCivilName('')).toBe('');
+  });
+});
+
+describe('companionBadgeName', () => {
+  const base = { name: 'Jean-Baptiste Delacroix-Fontaine', role: 'Père' };
+
+  it('imprime le pseudo quand le joueur en a choisi un', () => {
+    expect(companionBadgeName({ ...base, displayName: 'Jibé' })).toBe('Jibé');
+  });
+
+  it('retombe sur prénom + initiale, jamais sur le nom entier', () => {
+    expect(companionBadgeName(base)).toBe('Jean-Baptiste D.');
+    expect(companionBadgeName({ ...base, displayName: '   ' })).toBe('Jean-Baptiste D.');
+  });
+
+  it('n’imprime JAMAIS le nom du billet tel quel', () => {
+    // `name` est la donnée de contrôle, elle reste sur l'émargement.
+    expect(companionBadgeName(base)).not.toBe(base.name);
   });
 });
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Trash2, Hourglass, IdCard, Monitor,} from 'lucide-react';
+  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Hourglass, IdCard, Monitor,} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
@@ -22,6 +22,9 @@ import {
   IDENTITY_DOC_LABELS,
   ageAtEvent,
   MAX_COMPANIONS,
+  COMPANION_DISPLAY_NAME_MAX,
+  companionBadgeName,
+  shortenCivilName,
   type GuardianDocKind,
   type IdentityDocKind,
   type ManiaCupRegistration,
@@ -919,49 +922,34 @@ function LocationPoste({ reg }: { reg: ManiaCupRegistration }) {
 function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => void }) {
   const settings = useManiaCupSettings();
   const list = reg.companions ?? [];
-  const [adding, setAdding] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const full = list.length >= MAX_COMPANIONS;
 
-  function openForm(index: number | null) {
+  function openForm(index: number) {
     setEditIndex(index);
-    setName(index === null ? '' : (list[index]?.name ?? ''));
-    setRole(index === null ? '' : (list[index]?.role ?? ''));
-    setAdding(true);
+    setDisplayName(list[index]?.displayName ?? '');
+    setRole(list[index]?.role ?? '');
     setErr(null);
   }
 
   async function save() {
+    if (editIndex === null) return;
     setBusy(true);
     setErr(null);
     try {
       await api('/api/mania-cup/companion', {
         method: 'POST',
-        body: editIndex === null ? { name, role } : { name, role, index: editIndex },
+        body: { index: editIndex, displayName, role },
       });
-      setAdding(false);
       setEditIndex(null);
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(index: number) {
-    setBusy(true);
-    setErr(null);
-    try {
-      await api(`/api/mania-cup/companion?index=${index}`, { method: 'DELETE' });
-      onDone();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Suppression impossible.');
     } finally {
       setBusy(false);
     }
@@ -980,6 +968,9 @@ function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => 
               billet accompagnant à {settings.companionEuros} €
             </strong>{' '}
             sur HelloAsso : un billet spectateur ne donne pas accès à cette zone.
+            Une fois le billet réglé, la personne apparaît ci-dessous et tu peux
+            choisir le <strong className="text-white">nom affiché sur son badge</strong> —
+            un pseudo, par exemple.
           </p>
           <p className="mt-3 border-l-2 border-[#FFB800] pl-4 text-sm text-[#f2e6c8]">
             Au moment de payer, <strong className="text-white">ton code
@@ -995,107 +986,110 @@ function Companions({ reg, onDone }: { reg: ManiaCupRegistration; onDone: () => 
             />
           </div>
 
-          {list.length > 0 && (
+          {/* Rien à déclarer à l'avance : c'est le billet payé qui fait
+              apparaître la personne ici. Le dire, sinon le joueur cherche un
+              bouton « ajouter » qui n'existe plus. */}
+          {list.length === 0 ? (
+            <p className="mt-4 text-sm text-[#8d89a8]">
+              Dès qu’un billet accompagnant est réglé avec ton code, la personne
+              apparaît ici. Tu pourras alors choisir le nom affiché sur son badge.
+            </p>
+          ) : (
             <ul className="mt-5 space-y-3">
               {list.map((c, i) => {
                 const paid = c.ticketItemId != null;
+                const surLeBadge = companionBadgeName(c);
                 return (
                   <li
                     key={`${c.name}-${i}`}
-                    className="flex flex-wrap items-center justify-between gap-4 border border-white/15 bg-black/30 p-4"
+                    className="border border-white/15 bg-black/30 p-4"
                   >
-                    <div className="min-w-0">
-                      <div className="font-semibold">{c.name}</div>
-                      <div className="text-sm text-[#8d89a8]">{c.role}</div>
-                      <div
-                        className="mt-1 text-xs"
-                        style={{ color: paid ? '#00D936' : '#FFB800' }}
-                      >
-                        {paid ? 'Billet réglé' : 'Billet à régler'}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => openForm(i)}
-                        className="text-sm text-[#a364d9] underline"
-                      >
-                        Modifier
-                      </button>
-                      {!paid && (
-                        <button
-                          disabled={busy}
-                          onClick={() => void remove(i)}
-                          className="inline-flex items-center gap-1.5 text-sm text-[#8d89a8] hover:text-red-300 disabled:opacity-50"
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="font-semibold">{surLeBadge}</div>
+                        <div className="text-sm text-[#8d89a8]">
+                          {c.role}
+                          {c.displayName ? ` · billet au nom de ${c.name}` : ''}
+                        </div>
+                        <div
+                          className="mt-1 text-xs"
+                          style={{ color: paid ? '#00D936' : '#FFB800' }}
                         >
-                          <Trash2 size={14} aria-hidden /> Retirer
+                          {paid ? 'Billet réglé' : 'Billet à régler'}
+                        </div>
+                      </div>
+                      {paid && editIndex !== i && (
+                        <button
+                          onClick={() => openForm(i)}
+                          className="text-sm text-[#a364d9] underline"
+                        >
+                          Nom sur le badge
                         </button>
                       )}
                     </div>
+
+                    {editIndex === i && (
+                      <div className="mt-4 max-w-md space-y-4 border-t border-white/10 pt-4">
+                        <div>
+                          <label htmlFor={`comp-pseudo-${i}`} className="block text-sm text-[#c9c5d8]">
+                            Nom affiché sur le badge{' '}
+                            <span className="text-[#8d89a8]">(facultatif)</span>
+                          </label>
+                          <input
+                            id={`comp-pseudo-${i}`}
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            maxLength={COMPANION_DISPLAY_NAME_MAX}
+                            placeholder={shortenCivilName(c.name)}
+                            className={FIELD}
+                          />
+                          <p className="mt-1.5 text-xs text-[#8d89a8]">
+                            Un pseudo, un surnom — ce qu’il ou elle préfère porter.
+                            Laissé vide, le badge affichera{' '}
+                            <strong className="text-[#c9c5d8]">{shortenCivilName(c.name)}</strong>.
+                            Le nom du billet, lui, ne change pas : c’est celui qu’on
+                            contrôle à l’entrée.
+                          </p>
+                        </div>
+                        <div>
+                          <label htmlFor={`comp-role-${i}`} className="block text-sm text-[#c9c5d8]">
+                            En quelle qualité ? <span className="text-[#8d89a8]">(facultatif)</span>
+                          </label>
+                          <input
+                            id={`comp-role-${i}`}
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                            placeholder="Coach, parent, ami…"
+                            className={FIELD}
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            disabled={busy}
+                            onClick={() => void save()}
+                            className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-50"
+                          >
+                            {busy && <Loader2 className="animate-spin" size={16} aria-hidden />}
+                            Enregistrer
+                          </button>
+                          <button
+                            onClick={() => setEditIndex(null)}
+                            className="text-sm text-[#8d89a8] underline"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ul>
           )}
 
-          {adding ? (
-            <div className="mt-5 max-w-md space-y-4">
-              <div>
-                <label htmlFor="comp-name" className="block text-sm text-[#c9c5d8]">
-                  Nom et prénom
-                </label>
-                <input
-                  id="comp-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={FIELD}
-                />
-              </div>
-              <div>
-                <label htmlFor="comp-role" className="block text-sm text-[#c9c5d8]">
-                  En quelle qualité ? <span className="text-[#8d89a8]">(facultatif)</span>
-                </label>
-                <input
-                  id="comp-role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  placeholder="Coach, parent, ami…"
-                  className={FIELD}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  disabled={busy || !name.trim()}
-                  onClick={() => void save()}
-                  className="inline-flex items-center gap-2 bg-[#00D936] px-5 py-2.5 font-bold text-[#07050b] disabled:opacity-50"
-                >
-                  {busy && <Loader2 className="animate-spin" size={16} aria-hidden />}
-                  Enregistrer
-                </button>
-                <button
-                  onClick={() => {
-                    setAdding(false);
-                    setEditIndex(null);
-                  }}
-                  className="text-sm text-[#8d89a8] underline"
-                >
-                  Annuler
-                </button>
-              </div>
-            </div>
-          ) : (
-            !full && (
-              <button
-                onClick={() => openForm(null)}
-                className="mt-5 border border-white/20 px-5 py-2.5 hover:bg-white/10"
-              >
-                {list.length === 0 ? 'Déclarer un accompagnant' : 'Ajouter un accompagnant'}
-              </button>
-            )
-          )}
-
-          {full && !adding && (
+          {full && (
             <p className="mt-5 text-sm text-[#8d89a8]">
-              Tu as déclaré le maximum de {MAX_COMPANIONS} accompagnants.
+              Tu as le maximum de {MAX_COMPANIONS} accompagnants.
             </p>
           )}
 

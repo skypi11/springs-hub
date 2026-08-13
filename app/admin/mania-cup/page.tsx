@@ -225,7 +225,12 @@ export default function AdminManiaCupPage() {
         r.ageAtEvent,
         r.ageAtEvent < 18 ? 'oui' : '',
         r.guardianConsent === 'not_required' ? '' : GUARDIAN_STATUS_LABELS[r.guardianConsent],
-        r.companions.map((c) => c.name).join(' · '),
+        // Le nom du BILLET, celui qu'on contrôle à l'entrée — suivi du pseudo
+        // imprimé sur le badge quand il diffère, sans quoi le bénévole ne peut
+        // pas rapprocher la personne qu'il a en face de sa liste.
+        r.companions
+          .map((c) => (c.displayName?.trim() ? `${c.name} (badge : ${c.displayName.trim()})` : c.name))
+          .join(' · '),
         r.companions.length === 0
           ? ''
           : `${r.companions.filter((c) => c.ticketItemId != null).length}/${r.companions.length} réglé(s)`,

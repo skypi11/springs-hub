@@ -115,6 +115,8 @@ export interface Appartenance {
   tag: string | null;
   /** Équipe au sein de la structure, si le joueur est dans un roster. */
   team: string | null;
+  /** Logo de la structure, imprimé sur le badge quand il existe. */
+  logoUrl: string | null;
 }
 
 /**
@@ -158,7 +160,10 @@ export async function lireAppartenancesTM(
   const structures = new Map(
     structDocs
       .filter((d) => d.exists)
-      .map((d) => [d.id, d.data() as { name?: string; tag?: string; status?: string }])
+      .map((d) => [
+        d.id,
+        d.data() as { name?: string; tag?: string; status?: string; logoUrl?: string },
+      ])
   );
 
   // uid → nom d'équipe. Un joueur n'a qu'une équipe par jeu (règle du site) ;
@@ -177,8 +182,9 @@ export async function lireAppartenancesTM(
     // Une structure retirée ou refusée ne dit plus rien de l'appartenance.
     const vivantes = ids
       .map((id) => structures.get(id))
-      .filter((s): s is { name?: string; tag?: string; status?: string } =>
-        Boolean(s) && s?.status !== 'archived' && s?.status !== 'rejected'
+      .filter(
+        (s): s is { name?: string; tag?: string; status?: string; logoUrl?: string } =>
+          Boolean(s) && s?.status !== 'archived' && s?.status !== 'rejected'
       );
     if (vivantes.length === 0) continue;
     const s = vivantes[0];
@@ -186,6 +192,7 @@ export async function lireAppartenancesTM(
       structure: s.name?.trim() || '',
       tag: s.tag?.trim() || null,
       team: equipeParUid.get(uid)?.trim() || null,
+      logoUrl: s.logoUrl?.trim() || null,
     });
   }
   return out;
