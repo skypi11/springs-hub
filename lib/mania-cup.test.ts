@@ -9,6 +9,7 @@ import {
   needsGuardianConsent,
   discordIdFromUid,
   isRentalPaid,
+  texteMaterielLoue,
   MANIA_CUP,
   type GuardianDoc,
   type GuardianDocKind,
@@ -38,6 +39,27 @@ describe('isRentalPaid', () => {
     expect(isRentalPaid({ itemId: 42, amountCents: 9000 })).toBe(true);
     expect(isRentalPaid(null)).toBe(false);
     expect(isRentalPaid(undefined)).toBe(false);
+  });
+});
+
+describe('texteMaterielLoue', () => {
+  // Ce qui compte dans l'annonce, c'est l'ARTICLE : c'est lui qui dit quelle
+  // machine sortir du carton le 3 octobre.
+  it('nomme l’article loué', () => {
+    expect(texteMaterielLoue({ qui: 'Rag_TM', article: 'LOCATION PC FIXE (2 jours)', montantCents: 9000 }))
+      .toBe('🖥️ **Rag_TM** a loué du matériel : LOCATION PC FIXE (2 jours) · 90,00 €');
+  });
+
+  it('n’affiche pas de montant pour une location convenue de vive voix', () => {
+    // 0 € n'est pas un prix, c'est l'absence d'encaissement : l'écrire ferait
+    // croire à une location gratuite.
+    expect(texteMaterielLoue({ qui: 'Nova', article: 'écran seul', montantCents: 0 }))
+      .toBe('🖥️ **Nova** a loué du matériel : écran seul');
+  });
+
+  it('le dit quand l’article est inconnu, au lieu d’un blanc', () => {
+    expect(texteMaterielLoue({ qui: 'Nova', article: '   ' })).toContain('matériel non précisé');
+    expect(texteMaterielLoue({ qui: 'Nova' })).toContain('matériel non précisé');
   });
 });
 

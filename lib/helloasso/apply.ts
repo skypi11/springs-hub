@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createNotification } from '@/lib/notifications';
 import {
+  alerterMaterielLoue,
   alerterPlaceLiberee,
   alerterPlacePrise,
   donnerRoleInscrit,
@@ -181,6 +182,17 @@ export async function applyOrderItem(
     // compte, le reste se rattrape depuis la console.
     await alerterPlacePriseDepuisPaiement(db, outcome.uid).catch(() => {});
     await donnerRoleInscrit(db, outcome.uid).catch(() => {});
+  }
+
+  // Une location engage une machine à préparer, sur un stock très limité :
+  // l'organisation l'apprenait seulement en ouvrant la console.
+  if (changed && !estTest && outcome.kind === 'pc_rental') {
+    await alerterMaterielLoue(db, {
+      qui: item.participantName || item.payerName || 'un inscrit',
+      uid: outcome.uid,
+      article: item.tierLabel,
+      montantCents: item.amountCents,
+    }).catch(() => {});
   }
 
   // Un règlement encaissé qu'on ne sait pas rattacher ne doit jamais rester

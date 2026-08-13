@@ -1,7 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { createNotification } from './notifications';
 import { addMemberRole, removeMemberRole } from './discord-competition';
-import { springsGuildId, discordIdFromUid } from './mania-cup';
+import { springsGuildId, discordIdFromUid, texteMaterielLoue } from './mania-cup';
 import { getManiaCupSettings } from './mania-cup-settings';
 
 /**
@@ -140,6 +140,30 @@ export async function alerterPlacePrise(
       `✅ **${e.qui}** a réglé son inscription à la Springs Mania Cup${restantes}`
     ).catch(() => ({ ok: false }));
   }
+}
+
+/**
+ * Quelqu'un vient de louer du matériel.
+ *
+ * Même salon que les inscriptions : c'est là que l'organisation suit ce qui
+ * arrive. Une location engage une machine à préparer et un poste sur un stock
+ * très limité — elle ne doit pas s'apprendre en ouvrant la console par hasard.
+ */
+export async function alerterMaterielLoue(
+  db: Firestore,
+  e: EvenementInscription & { article?: string | null; montantCents?: number | null }
+): Promise<void> {
+  if (await estDossierDeTest(db, e.uid)) return;
+
+  const article = e.article?.trim() || 'matériel non précisé';
+  await prevenirLesAdmins(db, {
+    titre: 'Mania Cup — location de matériel',
+    message: `${e.qui} a loué : ${article}`,
+  });
+
+  const { staffChannelId } = await getManiaCupSettings(db);
+  if (!staffChannelId) return;
+  await posterDansSalon(staffChannelId, texteMaterielLoue(e)).catch(() => ({ ok: false }));
 }
 
 /**

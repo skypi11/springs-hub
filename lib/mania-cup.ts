@@ -392,6 +392,26 @@ export function isRentalPaid(rental: ManiaCupRental | null | undefined): boolean
   return rental?.itemId != null;
 }
 
+/**
+ * Le message annonçant une location au salon de l'organisation.
+ *
+ * Une location est du MATÉRIEL à sortir du carton le 3 octobre : ce qui compte
+ * dans la ligne, c'est l'article, pas le montant. L'organisation n'était
+ * prévenue de rien — elle ne l'apprenait qu'en ouvrant la console.
+ */
+export function texteMaterielLoue(e: {
+  qui: string;
+  article?: string | null;
+  montantCents?: number | null;
+}): string {
+  const article = e.article?.trim() || 'matériel non précisé';
+  const montant =
+    e.montantCents && e.montantCents > 0
+      ? ` · ${(e.montantCents / 100).toFixed(2).replace('.', ',')} €`
+      : '';
+  return `🖥️ **${e.qui}** a loué du matériel : ${article}${montant}`;
+}
+
 /** Ce qu'on garde d'un règlement encaissé sur HelloAsso. */
 export interface RegistrationPayment {
   /** Identifiants HelloAsso — `itemId` est la clé d'idempotence du rattachement. */
