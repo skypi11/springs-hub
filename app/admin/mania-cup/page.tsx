@@ -208,7 +208,7 @@ export default function AdminManiaCupPage() {
    *  qui reste lisible si le réseau tombe. */
   function exportRoster() {
     const header = [
-      'Nom', 'Prénom', 'Pseudo Trackmania', 'Code', 'Réglé', 'Âge', 'Mineur',
+      'Nom', 'Prénom', 'Pseudo Trackmania', 'Écurie', 'Équipe', 'Code', 'Réglé', 'Âge', 'Mineur',
       'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Matériel loué',
       'Emplacement', 'Droit à l’image', 'E-mail', 'Téléphone', 'Contact d’urgence',
     ];
@@ -218,6 +218,8 @@ export default function AdminManiaCupPage() {
         r.lastName,
         r.firstName,
         r.tmDisplayName,
+        r.appartenance?.structure ?? '',
+        r.appartenance?.team ?? '',
         r.registrationCode,
         r.status === 'confirmed' ? 'oui' : 'non',
         r.ageAtEvent,
@@ -477,7 +479,7 @@ export default function AdminManiaCupPage() {
             )}
             {' · '}une ligne s’ouvre au clic
           </p>
-          <table className="w-full min-w-[1100px] border-collapse text-sm">
+          <table className="w-full min-w-[1250px] border-collapse text-sm">
             <thead>
               {/* En-tête collant : à 64 dossiers on descend loin, et sans lui
                   on ne sait plus quelle colonne on lit. */}
@@ -494,6 +496,10 @@ export default function AdminManiaCupPage() {
                     contenu prévisible sont bornées ; le nom et les étiquettes
                     d'état se partagent le reste. */}
                 <th className="min-w-[150px] py-2.5 pr-4 font-medium">Joueur</th>
+                {/* Une LAN voit arriver des écuries, pas seulement des
+                    individus : savoir que trois inscrits viennent du même club
+                    change l'accueil, le placement en salle et les badges. */}
+                <th className="w-44 py-2.5 pr-4 font-medium">Écurie</th>
                 <th className="w-52 py-2.5 pr-4 font-medium">Contact</th>
                 <th className="w-32 py-2.5 pr-4 font-medium">Pays</th>
                 <th className="w-20 py-2.5 pr-4 font-medium">Âge</th>

@@ -29,6 +29,7 @@ const base: Row = {
   guardianDocs: {},
   guardianRejectionReason: null,
   registrationCode: 'LAN-RJDC',
+  appartenance: null,
   companions: [],
   payment: null,
   pcRental: null,

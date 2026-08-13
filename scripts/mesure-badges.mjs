@@ -33,9 +33,12 @@ const css = src.slice(debut + '<style jsx global>{`'.length, fin);
 // faisait deborder l'ancienne version, parce que la taille se calculait sur la
 // longueur totale au lieu du MOT LE PLUS LONG.
 const CAS = [
-  { cat: 'JOUEUR', couleur: '#00D936', nom: 'G0LI0', detail: 'Trackmania', code: 'LAN-7Y6B' },
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'G0LI0', detail: 'Trackmania', equipe: 'Nyxar Esport · Nyxar Main', code: 'LAN-7Y6B' },
   { cat: 'ACCOMPAGNANT', couleur: '#FFB800', nom: 'Jean-Baptiste Delacroix-Fontaine', detail: 'Accompagnant de G0LI0', code: '' },
   { cat: 'SPECTATEUR', couleur: '#c6c6d2', nom: 'Bartholomeworthington', detail: '', code: '' },
+  // Le pire cas d'écurie : un nom de club à rallonge ET une équipe. Il doit se
+  // couper proprement, pas pousser le pied du badge hors du cadre.
+  { cat: 'JOUEUR', couleur: '#00D936', nom: 'Fan2SkandeaR', detail: 'Romain Pajot', equipe: 'Association Sportive de Trackmania du Val de Loire · Équipe Compétitive B', code: 'LAN-RJDC' },
   { cat: 'STAFF', couleur: '#A66BE8', nom: 'Matt Molines', detail: 'Direction', code: '' },
 ];
 
@@ -55,6 +58,7 @@ const badge = (c) => `
       <div class="mc-who">
         <div class="mc-name" data-nom="${c.nom}">${c.nom}</div>
         ${c.detail ? `<div class="mc-detail">${c.detail}</div>` : ''}
+        ${c.equipe ? `<div class="mc-team">${c.equipe}</div>` : ''}
       </div>
       <div class="mc-meta">
         <span>aedral.com/mania-cup</span>
@@ -107,6 +111,20 @@ const page = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
         deborde: corps.scrollHeight > corps.clientHeight + 1,
         depassement_px: Math.max(0, corps.scrollHeight - corps.clientHeight),
         nom_deborde: nr.width > corps.clientWidth,
+        // L'écurie doit tenir sur UNE ligne et rester dans le cadre : c'est
+        // elle qui pousserait le pied dehors si elle se mettait à en prendre deux.
+        ecurie: (() => {
+          const t = b.querySelector('.mc-team');
+          if (!t) return null;
+          const tr = t.getBoundingClientRect();
+          const lignes = Math.round(tr.height / parseFloat(getComputedStyle(t).lineHeight || '0'));
+          return {
+            largeur_mm: +(tr.width / mm).toFixed(1),
+            deborde_en_largeur: t.scrollWidth > t.clientWidth + 1,
+            coupee_proprement: t.scrollWidth > t.clientWidth + 1,
+            lignes,
+          };
+        })(),
       });
     }
     return out;

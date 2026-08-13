@@ -37,6 +37,7 @@ type Row = {
   seat: string | null;
   imageConsent: boolean | null;
   registrationCode: string;
+  appartenance: { structure: string; tag: string | null; team: string | null } | null;
   companions: { name: string; role: string; ticketItemId?: number | null }[];
 };
 
@@ -59,6 +60,8 @@ interface Badge {
   headline: string;
   /** Ce qui identifie la personne au-delà de son nom. */
   detail: string;
+  /** L'écurie, et son équipe quand il y en a une. Absente pour un solo. */
+  team?: string | null;
   seat?: string | null;
   code?: string | null;
   noImage?: boolean;
@@ -120,6 +123,12 @@ export default function BadgesPage() {
         category: 'player',
         headline: r.tmDisplayName || civil,
         detail: civil,
+        // L'écurie, puis son équipe quand elle en a plusieurs : « Nyxar Esport »
+        // seul suffit à un club à une équipe, et personne ne lit deux lignes de
+        // plus sur un badge.
+        team: r.appartenance
+          ? [r.appartenance.structure, r.appartenance.team].filter(Boolean).join(' · ')
+          : null,
         seat: r.seat,
         code: r.registrationCode,
         noImage: r.imageConsent === false,
@@ -447,6 +456,20 @@ export default function BadgesPage() {
           font-weight: 500;
           text-align: center;
         }
+        /* L'écurie se lit après le nom, sans lui voler la vedette : une seule
+           ligne, jamais deux — la zone du nom est la seule qui absorbe les
+           écarts, et déborder la ferait sortir le pied du cadre à l'impression. */
+        .mc-team {
+          max-width: 100%;
+          font-size: 4.07mm;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          color: #8fe3a5;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         .mc-seat {
           border: 0.49mm solid rgba(0, 217, 54, 0.65);
           background: rgba(0, 217, 54, 0.12);
@@ -549,6 +572,9 @@ function BadgeCard({ badge }: { badge: Badge }) {
             {badge.headline}
           </div>
           {badge.detail && <div className="mc-detail">{badge.detail}</div>}
+          {/* L'écurie : à l'accueil, elle dit d'un coup d'œil que trois
+              personnes arrivent ensemble, et à qui les asseoir côte à côte. */}
+          {badge.team && <div className="mc-team">{badge.team}</div>}
           {badge.seat && (
             <div className="mc-seat">
               <span className="k">Place</span>

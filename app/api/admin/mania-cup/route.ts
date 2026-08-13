@@ -13,6 +13,7 @@ import {
   MANIA_CUP_WAITLIST, prochainAInviter, fileEnAttente,
 } from '@/lib/mania-cup-waitlist';
 import { lireFileAttente, compterPlacesReglees } from '@/lib/mania-cup-waitlist-server';
+import { lireAppartenancesTM } from '@/lib/mania-cup-server';
 import {
   MANIA_CUP_REGISTRATIONS,
   isRentalPaid,
@@ -57,6 +58,10 @@ export async function GET(req: NextRequest) {
       profils.map((p) => [p.id, (p.data()?.country as string) || ''])
     );
 
+    // À quelle écurie appartient chaque inscrit. La billetterie ne connaît que
+    // des personnes ; l'accueil, lui, voit arriver des clubs entiers.
+    const appartenances = await lireAppartenancesTM(db, profils);
+
     const registrations = snap.docs.map((d) => {
       const r = d.data() as ManiaCupRegistration;
       return {
@@ -86,6 +91,8 @@ export async function GET(req: NextRequest) {
         ),
         guardianRejectionReason: r.guardianRejectionReason ?? null,
         registrationCode: r.registrationCode,
+        /** Écurie et équipe Trackmania, quand le joueur en a une sur Aedral. */
+        appartenance: appartenances.get(d.id) ?? null,
         companions: readCompanions(r),
         payment: r.payment ?? null,
         pcRental: r.pcRental ?? null,

@@ -7,6 +7,7 @@ import {
   normalizeRegistrationCode,
   type ManiaCupRegistration,
 } from '@/lib/mania-cup';
+import { getStructuresForGame } from '@/lib/structure-membership';
 
 // Attribution et lecture des codes d'inscription, côté serveur.
 //
@@ -105,6 +106,89 @@ export async function releaseRegistrationCode(
     if ((snap.data() as CodeReservation).uid !== uid) return;
     tx.delete(ref);
   });
+}
+
+/** À quelle écurie et à quelle équipe appartient un inscrit. */
+export interface Appartenance {
+  /** Nom de la structure, tag court s'il existe (« Nyxar Esport », « NYX »). */
+  structure: string;
+  tag: string | null;
+  /** Équipe au sein de la structure, si le joueur est dans un roster. */
+  team: string | null;
+}
+
+/**
+ * L'appartenance Trackmania des inscrits à la LAN.
+ *
+ * La billetterie ne connaît que des personnes ; l'accueil du 3 octobre, lui,
+ * voit arriver des écuries. Sans ce rapprochement, l'organisation ne savait pas
+ * que trois inscrits venaient du même club, et le badge ne pouvait pas le dire.
+ *
+ * Deux lectures, quel que soit le nombre d'inscrits : les structures citées par
+ * les profils, et les équipes Trackmania. On ne fait AUCUNE requête par joueur.
+ *
+ * `profils` est la liste déjà chargée par l'appelant — la console lit ces
+ * documents de toute façon, autant ne pas les relire.
+ */
+export async function lireAppartenancesTM(
+  db: Firestore,
+  profils: { id: string; data(): Record<string, unknown> | undefined }[]
+): Promise<Map<string, Appartenance>> {
+  const structureIdsParUid = new Map<string, string[]>();
+  const tousLesIds = new Set<string>();
+  for (const p of profils) {
+    const ids = getStructuresForGame(
+      p.data()?.structurePerGame as Record<string, string | string[]> | undefined,
+      'trackmania'
+    );
+    if (ids.length === 0) continue;
+    structureIdsParUid.set(p.id, ids);
+    for (const id of ids) tousLesIds.add(id);
+  }
+  if (tousLesIds.size === 0) return new Map();
+
+  const [structDocs, teamsSnap] = await Promise.all([
+    db.getAll(...Array.from(tousLesIds).map((id) => db.collection('structures').doc(id))),
+    // Volume borné : ce sont les équipes Trackmania de TOUT le site, et une
+    // écurie en compte quelques-unes. Le cap évite un balayage incontrôlé si le
+    // jeu décolle.
+    db.collection('sub_teams').where('game', '==', 'trackmania').limit(500).get(),
+  ]);
+
+  const structures = new Map(
+    structDocs
+      .filter((d) => d.exists)
+      .map((d) => [d.id, d.data() as { name?: string; tag?: string; status?: string }])
+  );
+
+  // uid → nom d'équipe. Un joueur n'a qu'une équipe par jeu (règle du site) ;
+  // si le cas se présentait quand même, la première rencontrée fait foi.
+  const equipeParUid = new Map<string, string>();
+  for (const doc of teamsSnap.docs) {
+    const t = doc.data() as { name?: string; playerIds?: string[]; subIds?: string[]; status?: string };
+    if (t.status === 'archived') continue;
+    for (const id of [...(t.playerIds ?? []), ...(t.subIds ?? [])]) {
+      if (id && !equipeParUid.has(id)) equipeParUid.set(id, t.name ?? '');
+    }
+  }
+
+  const out = new Map<string, Appartenance>();
+  for (const [uid, ids] of structureIdsParUid) {
+    // Une structure retirée ou refusée ne dit plus rien de l'appartenance.
+    const vivantes = ids
+      .map((id) => structures.get(id))
+      .filter((s): s is { name?: string; tag?: string; status?: string } =>
+        Boolean(s) && s?.status !== 'archived' && s?.status !== 'rejected'
+      );
+    if (vivantes.length === 0) continue;
+    const s = vivantes[0];
+    out.set(uid, {
+      structure: s.name?.trim() || '',
+      tag: s.tag?.trim() || null,
+      team: equipeParUid.get(uid)?.trim() || null,
+    });
+  }
+  return out;
 }
 
 /**

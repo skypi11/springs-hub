@@ -42,6 +42,8 @@ export type Row = {
   guardianDocs: Partial<Record<'consent' | 'guardian_id', { name: string }>>;
   guardianRejectionReason: string | null;
   registrationCode: string;
+  /** Écurie et équipe Trackmania du joueur sur Aedral, s'il en a une. */
+  appartenance: { structure: string; tag: string | null; team: string | null } | null;
   companions: { name: string; role: string; ticketItemId?: number | null }[];
   payment: {
     amountCents: number;
@@ -178,6 +180,31 @@ export default function RegistrationRow({
           )}
         </td>
 
+        {/* L'écurie du joueur, quand il en a une sur Aedral. La plupart des
+            inscrits viennent seuls : la colonne reste alors vide plutôt que de
+            fabriquer une appartenance. */}
+        <td className="py-3 pr-4 align-middle">
+          {r.appartenance ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                {r.appartenance.tag && (
+                  <span className="tag tag-green shrink-0">{r.appartenance.tag}</span>
+                )}
+                <span className="truncate text-sm" title={r.appartenance.structure}>
+                  {r.appartenance.structure}
+                </span>
+              </div>
+              {r.appartenance.team && (
+                <div className="truncate text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  {r.appartenance.team}
+                </div>
+              )}
+            </>
+          ) : (
+            <span style={{ color: 'var(--s-text-muted)' }}>—</span>
+          )}
+        </td>
+
         {/* Joindre quelqu'un est la deuxième chose qu'on fait après l'avoir
             trouvé. L'adresse et le téléphone ne vivaient que dans l'export :
             il fallait ouvrir un tableur pour passer un appel. */}
@@ -310,7 +337,7 @@ export default function RegistrationRow({
 
       {open && (
         <tr className="border-b border-white/10">
-          <td colSpan={9} className="p-0">
+          <td colSpan={10} className="p-0">
             <Dossier
               row={r}
               onAct={onAct}
@@ -409,6 +436,19 @@ function Dossier({
             <span style={{ color: 'var(--s-text-dim)' }}>accordé</span>
           )}
         </Champ>
+        {r.appartenance && (
+          <Champ label="Écurie">
+            <div>
+              {r.appartenance.tag ? `${r.appartenance.tag} · ` : ''}
+              {r.appartenance.structure}
+            </div>
+            {r.appartenance.team && (
+              <div className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                équipe {r.appartenance.team}
+              </div>
+            )}
+          </Champ>
+        )}
         {r.discordId && (
           <Champ label="Discord">
             <span className="font-mono text-xs">{r.discordId}</span>
