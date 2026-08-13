@@ -73,43 +73,43 @@ export default function InscritsPage() {
             ) : (
               <ul className="mt-10 divide-y divide-white/5 border-y border-white/10">
                 {data.participants.map((p, i) => (
+                  // Des COLONNES, pas une file : le pseudo poussait la structure
+                  // jusque contre l'étiquette « en attente », les deux se
+                  // disputaient le bord droit et les logos dansaient d'une ligne
+                  // à l'autre. Chacun sa colonne, et les logos s'alignent.
                   <li
                     key={`${p.tmDisplayName}-${i}`}
-                    className="flex items-center gap-4 py-3.5"
+                    className="grid grid-cols-[2rem_1.75rem_minmax(0,1fr)_5.5rem] items-center gap-x-4 py-3.5 sm:grid-cols-[2rem_1.75rem_minmax(0,1fr)_minmax(0,1fr)_5.5rem]"
                   >
-                    <span className="w-8 shrink-0 text-right text-sm text-[#6a6a8a]">
-                      {i + 1}
-                    </span>
+                    <span className="text-right text-sm text-[#6a6a8a]">{i + 1}</span>
                     <CountryFlag code={p.countryCode} size={24} title={countryName(p.countryCode)} />
-                    <span className="min-w-0 flex-1 truncate font-semibold">
-                      {p.tmDisplayName}
-                    </span>
+                    <span className="min-w-0 truncate font-semibold">{p.tmDisplayName}</span>
                     {/* La structure du joueur : c'est ce qui fait voir qu'un
                         club se déplace à plusieurs, et ça donne aux structures
                         une raison de plus d'amener leurs pilotes. */}
-                    {p.structure && (
-                      <span
-                        className="hidden min-w-0 shrink items-center gap-2 sm:flex"
-                        title={p.structure.name}
-                      >
-                        {p.structure.logoUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={p.structure.logoUrl}
-                            alt=""
-                            className="h-6 w-6 shrink-0 rounded-[3px] bg-[#9a9aa8] object-contain p-[1px]"
-                          />
-                        )}
-                        <span className="truncate text-sm text-[#c9c5d8]">
-                          {p.structure.name}
+                    <span
+                      className="hidden min-w-0 items-center gap-2 sm:flex"
+                      title={p.structure?.name}
+                    >
+                      {p.structure?.logoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.structure.logoUrl}
+                          alt=""
+                          className="h-6 w-6 shrink-0 rounded-[3px] bg-[#9a9aa8] object-contain p-[1px]"
+                        />
+                      )}
+                      <span className="truncate text-sm text-[#c9c5d8]">
+                        {p.structure?.name}
+                      </span>
+                    </span>
+                    <span className="text-right">
+                      {p.status === 'pending_payment' && (
+                        <span className="border border-[#FFB800]/40 px-2 py-0.5 text-xs whitespace-nowrap text-[#FFB800]">
+                          en attente
                         </span>
-                      </span>
-                    )}
-                    {p.status === 'pending_payment' && (
-                      <span className="shrink-0 border border-[#FFB800]/40 px-2 py-0.5 text-xs text-[#FFB800]">
-                        en attente
-                      </span>
-                    )}
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
