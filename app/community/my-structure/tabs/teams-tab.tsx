@@ -95,7 +95,6 @@ export interface TeamsTabProps {
 
   isDirigeantOfActive: boolean;
   isManagerOfActive: boolean;
-  isFounderOfActive: boolean;
   canReorderTeams: boolean;
   teamScopeActive: boolean;
   isTeamInScope: (t: TeamData) => boolean;
@@ -132,7 +131,7 @@ export function TeamsTab(props: TeamsTabProps) {
     collapsedTeamGroups, setCollapsedTeamGroups,
     healthOpen, setHealthOpen, collapsed, toggle,
     discordChannels, discordChannelsLoading, discordChannelsError, loadDiscordChannels,
-    isDirigeantOfActive, isManagerOfActive, isFounderOfActive, canReorderTeams,
+    isDirigeantOfActive, isManagerOfActive, canReorderTeams,
     teamScopeActive, isTeamInScope,
     handleCreateTeam, handleArchiveTeam, handleSetCaptain,
     handleUpdateTeamLogo, handleUpdateTeamLabel,
@@ -221,7 +220,9 @@ export function TeamsTab(props: TeamsTabProps) {
     const canAddSub = caps.remplacants === null || team.subs.length < caps.remplacants;
     const captainId = team.captainId ?? null;
     const canManageTeam = isAdminOfActive;
-    const canDeleteTeam = isFounderOfActive;
+    // Supprimer : les DIRIGEANTS, fondateur comme co-fondateurs. Le responsable
+    // en reste exclu — il gère les équipes, il ne les efface pas.
+    const canDeleteTeam = isDirigeantOfActive;
     const menuOpen = teamMenuOpen === team.id;
 
     return (

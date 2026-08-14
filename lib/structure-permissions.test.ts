@@ -5,6 +5,7 @@ import {
   isStructureAdminForGame,
   getResponsableGames, getCoachGames,
   canManageEventsForGame, canManageTeamsForGame, canManageTodosForGame,
+  canDeleteTeam, canDeleteStructure,
   structureContext,
   type StructureRoleData,
 } from './structure-permissions';
@@ -95,6 +96,43 @@ describe('Dirigeants jamais scopés', () => {
     }));
     expect(isStructureAdminForGame(ctx, 'rocket_league')).toBe(true);
     expect(isStructureAdminForGame(ctx, 'valorant')).toBe(true);
+  });
+});
+
+describe('canDeleteTeam', () => {
+  const CO_FOUNDER_UID = 'u-cofounder';
+  const withCoFounder = () => buildStructure({ coFounderIds: [CO_FOUNDER_UID] });
+
+  it('autorise le fondateur', () => {
+    expect(canDeleteTeam(structureContext(FOUNDER_UID, withCoFounder()))).toBe(true);
+  });
+
+  it('autorise le CO-FONDATEUR', () => {
+    // Ouvert le 14/08/2026 : un co-fondateur est un dirigeant, il crée et
+    // archive déjà les équipes. Lui refuser la dernière étape n'ajoutait pas de
+    // sécurité, seulement une dépendance au fondateur.
+    expect(canDeleteTeam(structureContext(CO_FOUNDER_UID, withCoFounder()))).toBe(true);
+  });
+
+  it('refuse le responsable — il gère les équipes, il ne les efface pas', () => {
+    expect(canDeleteTeam(structureContext(RESPONSABLE_UID, withCoFounder()))).toBe(false);
+  });
+
+  it('refuse le coach et un inconnu', () => {
+    expect(canDeleteTeam(structureContext(COACH_UID, withCoFounder()))).toBe(false);
+    expect(canDeleteTeam(structureContext(RANDOM_UID, withCoFounder()))).toBe(false);
+  });
+
+  it('refuse tout le monde sur une structure suspendue', () => {
+    const gelee = buildStructure({ coFounderIds: [CO_FOUNDER_UID], status: 'suspended' });
+    expect(canDeleteTeam(structureContext(FOUNDER_UID, gelee))).toBe(false);
+    expect(canDeleteTeam(structureContext(CO_FOUNDER_UID, gelee))).toBe(false);
+  });
+
+  it('la suppression de la STRUCTURE reste au fondateur seul', () => {
+    // Ce qui vient d'être ouvert, c'est l'équipe — pas la structure.
+    expect(canDeleteStructure(structureContext(CO_FOUNDER_UID, withCoFounder()))).toBe(false);
+    expect(canDeleteStructure(structureContext(FOUNDER_UID, withCoFounder()))).toBe(true);
   });
 });
 

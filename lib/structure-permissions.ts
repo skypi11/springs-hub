@@ -196,10 +196,19 @@ export function canManageTeams(ctx: StructureContext): boolean {
   return isWritable(ctx) && isStructureAdmin(ctx);
 }
 
-// Supprimer une équipe (destructif).
-// → Fondateur UNIQUEMENT.
+// Supprimer une équipe (destructif, aucun historique conservé).
+// → DIRIGEANTS (fondateur + co-fondateurs), depuis le 14/08/2026.
+//
+// Le co-fondateur est un dirigeant : il crée, modifie et archive déjà les
+// équipes, et il faudrait de toute façon passer par le fondateur pour un geste
+// qu'il peut accomplir à 99 % autrement (archiver, vider le roster). Lui
+// refuser la dernière étape n'ajoutait pas de sécurité, seulement une
+// dépendance. Le geste reste journalisé (`team_deleted`) : ce qui protège ici,
+// c'est la trace, pas le verrou.
+//
+// La suppression de la STRUCTURE, elle, reste au fondateur seul.
 export function canDeleteTeam(ctx: StructureContext): boolean {
-  return isWritable(ctx) && isFounder(ctx);
+  return isWritable(ctx) && isDirigeant(ctx);
 }
 
 // Modifier le label / groupOrder / jeu d'une équipe (changement structurant).

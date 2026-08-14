@@ -1904,7 +1904,6 @@ export default function MyStructurePage() {
               loadDiscordChannels={loadDiscordChannels}
               isDirigeantOfActive={isDirigeantOfActive}
               isManagerOfActive={isManagerOfActive}
-              isFounderOfActive={isFounderOfActive}
               canReorderTeams={canReorderTeams}
               teamScopeActive={teamScopeActive}
               isTeamInScope={isTeamInScope}

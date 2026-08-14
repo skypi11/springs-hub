@@ -71,7 +71,7 @@ Un user peut cumuler plusieurs rôles (ex: Co-fondateur de A + Responsable de B 
 | Archiver / désarchiver une équipe | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Modifier le label (groupe) d'une équipe | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Réorganiser l'ordre des équipes | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Supprimer une équipe (destructif) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Supprimer une équipe (destructif) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 `(sa)` = uniquement sur son équipe / les équipes où il est staff
 

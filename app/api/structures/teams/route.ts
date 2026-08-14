@@ -7,7 +7,13 @@ import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { createNotification, createNotifications, type NotificationPayload } from '@/lib/notifications';
 import { bumpStructureCounterStandalone } from '@/lib/structure-counters';
 import { extractR2Key, deleteFileSilent } from '@/lib/storage';
-import { canManageTeams, structureContext } from '@/lib/structure-permissions';
+import {
+  canDeleteTeam,
+  canManageTeams,
+  structureContext,
+  type StructureRoleData,
+} from '@/lib/structure-permissions';
+import { writeAuditLog } from '@/lib/audit-log';
 import { getGameLabel, getRosterCaps } from '@/lib/games-registry';
 
 // Lit la structure + vérifie que l'user a le droit "admin" (dirigeant ou
@@ -716,10 +722,14 @@ export async function POST(req: NextRequest) {
       }
 
       case 'delete': {
-        // Suppression définitive : fondateur uniquement (destructif, pas d'historique).
-        // Les dirigeants peuvent préférer l'action 'archive'.
-        if (!isFounder) {
-          return NextResponse.json({ error: 'La suppression est réservée au fondateur. Utilisez "archiver".' }, { status: 403 });
+        // Suppression définitive, sans historique : les DIRIGEANTS, via le
+        // helper partagé — la règle vivait ici en double, et une règle en double
+        // finit toujours par diverger de celle que l'écran applique.
+        if (!canDeleteTeam(structureContext(uid, structureData as StructureRoleData))) {
+          return NextResponse.json(
+            { error: 'La suppression est réservée aux dirigeants. Sinon, archive l’équipe.' },
+            { status: 403 }
+          );
         }
         if (!teamId) {
           return NextResponse.json({ error: 'teamId requis' }, { status: 400 });
@@ -740,6 +750,26 @@ export async function POST(req: NextRequest) {
         if (teamDataDel.status === 'active') {
           await bumpStructureCounterStandalone(db, structureId, 'teams', -1);
         }
+        // La trace, maintenant qu'ils sont plusieurs à pouvoir le faire. Le type
+        // `team_deleted` existait depuis le début du journal et n'était écrit
+        // nulle part : une équipe disparaissait sans qu'on sache par qui.
+        // Le nom et l'effectif sont recopiés ici — après le delete, il n'y a
+        // plus rien à relire.
+        // Le journal ne doit jamais faire échouer une suppression déjà commise :
+        // l'équipe n'existe plus, renvoyer une erreur ferait croire le contraire.
+        await writeAuditLog(db, {
+          structureId,
+          action: 'team_deleted',
+          actorUid: uid,
+          targetId: teamId,
+          metadata: {
+            name: typeof teamDataDel.name === 'string' ? teamDataDel.name : '',
+            game: typeof teamDataDel.game === 'string' ? teamDataDel.game : '',
+            joueurs: ((teamDataDel.playerIds ?? []) as string[]).length,
+            remplacants: ((teamDataDel.subIds ?? []) as string[]).length,
+            etait: teamDataDel.status === 'archived' ? 'archivée' : 'active',
+          },
+        }).catch(() => {});
         return NextResponse.json({ success: true });
       }
 
