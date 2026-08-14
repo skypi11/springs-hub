@@ -58,6 +58,26 @@ export async function GET(req: NextRequest) {
       profils.map((p) => [p.id, (p.data()?.country as string) || ''])
     );
 
+    // Le pseudo Discord et l'adresse du profil public.
+    //
+    // Un joueur s'inscrit sous son pseudo Trackmania, qui n'a souvent rien à
+    // voir avec celui sous lequel on lui parle sur le Discord. La console ne
+    // montrait que le snowflake, replié dans le dossier : reconnaître un
+    // nouvel inscrit demandait de le recopier dans la barre de recherche de
+    // Discord. Le profil Aedral, lui, n'était accessible d'aucun endroit.
+    const comptesParUid = new Map(
+      profils.map((p) => {
+        const d = p.data();
+        return [
+          p.id,
+          {
+            discordUsername: ((d?.discordUsername as string) || '').trim() || null,
+            slug: ((d?.slug as string) || '').trim() || null,
+          },
+        ] as const;
+      })
+    );
+
     // À quelle écurie appartient chaque inscrit. La billetterie ne connaît que
     // des personnes ; l'accueil, lui, voit arriver des clubs entiers.
     const appartenances = await lireAppartenancesTM(db, profils);
@@ -69,6 +89,12 @@ export async function GET(req: NextRequest) {
         tmDisplayName: r.tmDisplayName,
         tmAccountId: r.tmAccountId,
         discordId: r.discordId,
+        // Sous quel nom on lui parle sur le Discord, et où mène son profil
+        // Aedral. Les deux viennent du PROFIL, pas de la copie figée au dépôt
+        // du dossier : un joueur qui change de pseudo Discord doit rester
+        // reconnaissable.
+        discordUsername: comptesParUid.get(d.id)?.discordUsername ?? null,
+        profileSlug: comptesParUid.get(d.id)?.slug ?? null,
         // Identité civile : c'est elle que le bénévole compare à la pièce
         // d'identité présentée à l'accueil.
         firstName: r.firstName ?? '',
@@ -151,7 +177,11 @@ export async function GET(req: NextRequest) {
         expireA: e.expireA ?? null,
         expiree: e.statut === 'invited' && e.expireA != null && e.expireA <= maintenant,
         nom: nomsParUid.get(e.uid) || (u.pseudoTM as string) || (u.displayName as string) || e.uid,
-        discordId: (u.discordId as string) ?? null,
+        // Le snowflake était chargé ici depuis le début et n'était affiché
+        // nulle part. Ce qu'il faut pour reconnaître quelqu'un, c'est son
+        // pseudo Discord et son profil.
+        discordUsername: ((u.discordUsername as string) || '').trim() || null,
+        slug: ((u.slug as string) || '').trim() || null,
         demandeLe: e.createdAt,
       };
     });

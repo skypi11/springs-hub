@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Check, X, Euro, ShieldCheck, FileText, ChevronDown, Monitor, MapPin,
   MessageSquare, UserCheck, Ban, Loader2, Copy,
 } from 'lucide-react';
 import CountryFlag from '@/components/ui/CountryFlag';
 import CountrySelect from '@/components/ui/CountrySelect';
+import CopyHandle from '@/components/ui/CopyHandle';
 import { countries } from '@/lib/countries';
+import { getProfileHref } from '@/lib/user-slug';
 import { GUARDIAN_DOC_KINDS, GUARDIAN_DOC_LABELS } from '@/lib/mania-cup';
 
 // Une inscription dans la console : une LIGNE dense, et son dossier complet
@@ -29,6 +32,12 @@ export type Row = {
   tmDisplayName: string;
   tmAccountId: string;
   discordId: string | null;
+  /** Le pseudo sous lequel on lui parle sur le Discord — souvent sans aucun
+   *  rapport avec son pseudo Trackmania. */
+  discordUsername: string | null;
+  /** Adresse publique de son profil Aedral. Null pour les comptes antérieurs
+   *  aux slugs : on retombe alors sur l'uid, que la route sait résoudre. */
+  profileSlug: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -132,6 +141,33 @@ export function needsAction(r: Row): boolean {
   );
 }
 
+/**
+ * Ce dossier répond-il à la recherche ?
+ *
+ * On cherche quelqu'un par tout ce qui l'identifie dans la vraie vie : son
+ * pseudo Trackmania, son pseudo Discord, son nom, son adresse, son code. Le
+ * pseudo Discord manquait, alors que c'est justement le nom sous lequel arrive
+ * un message quand quelqu'un vient de s'inscrire.
+ *
+ * `needle` est attendu déjà mis en minuscules et détouré par l'appelant.
+ */
+export function matchesSearch(r: Row, needle: string): boolean {
+  if (!needle) return true;
+  return [
+    r.tmDisplayName,
+    r.discordUsername,
+    r.firstName,
+    r.lastName,
+    r.email,
+    r.registrationCode,
+    r.seat,
+    r.appartenance?.structure,
+    r.appartenance?.tag,
+  ]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(needle));
+}
+
 export default function RegistrationRow({
   row: r,
   rank,
@@ -178,8 +214,20 @@ export default function RegistrationRow({
           {/* Le PSEUDO en premier : c'est par lui qu'on reconnaît un joueur,
               c'est lui qui figure sur la page publique et dans les
               conversations. L'identité civile suit, elle ne sert qu'une fois,
-              au contrôle de la pièce d'identité à l'accueil. */}
-          <div className="truncate leading-tight font-semibold">{r.tmDisplayName || '—'}</div>
+              au contrôle de la pièce d'identité à l'accueil.
+
+              Et il mène au profil Aedral, dans un onglet à part : c'est là que
+              vivent l'avatar, la structure et l'historique — de quoi mettre un
+              visage sur un inscrit sans quitter la console. */}
+          <Link
+            href={getProfileHref({ slug: r.profileSlug, uid: r.uid })}
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+            title="Ouvrir son profil Aedral"
+            className="block truncate leading-tight font-semibold hover:underline"
+          >
+            {r.tmDisplayName || '—'}
+          </Link>
           {r.firstName || r.lastName ? (
             <div className="truncate text-xs leading-tight" style={{ color: 'var(--s-text-dim)' }}>
               {`${r.firstName} ${r.lastName}`.trim()}
@@ -188,6 +236,25 @@ export default function RegistrationRow({
             <div className="text-xs leading-tight" style={{ color: 'var(--s-gold)' }}>
               fiche incomplète
             </div>
+          )}
+        </td>
+
+        {/* Sous quel nom on lui parle sur le Discord.
+            Un joueur s'inscrit sous son pseudo Trackmania, et les deux n'ont
+            souvent rien à voir : sans cette colonne, reconnaître un nouvel
+            inscrit demandait d'ouvrir son dossier, d'y lire un snowflake, et
+            de le recopier dans la recherche de Discord. */}
+        <td className="py-3 pr-4 align-middle">
+          {r.discordUsername ? (
+            <CopyHandle handle={r.discordUsername} />
+          ) : (
+            <span
+              className="text-xs"
+              style={{ color: 'var(--s-text-muted)' }}
+              title="Ce compte n’a pas de pseudo Discord enregistré — il se remplit à sa prochaine connexion."
+            >
+              inconnu
+            </span>
           )}
         </td>
 
@@ -348,7 +415,7 @@ export default function RegistrationRow({
 
       {open && (
         <tr className="border-b border-white/10">
-          <td colSpan={10} className="p-0">
+          <td colSpan={11} className="p-0">
             <Dossier
               row={r}
               onAct={onAct}
@@ -460,9 +527,16 @@ function Dossier({
             )}
           </Champ>
         )}
-        {r.discordId && (
+        {(r.discordUsername || r.discordId) && (
           <Champ label="Discord">
-            <span className="font-mono text-xs">{r.discordId}</span>
+            {r.discordUsername && <CopyHandle handle={r.discordUsername} />}
+            {/* Le snowflake reste : c'est lui qui sert à citer quelqu'un
+                (`<@id>`) ou à le retrouver dans les réglages du serveur. */}
+            {r.discordId && (
+              <div className="font-mono text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                {r.discordId}
+              </div>
+            )}
           </Champ>
         )}
       </Colonne>

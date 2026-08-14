@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MaterielLoue, type Row, type ActionBody } from './RegistrationRow';
+import { baseRow } from './RegistrationRow.fixture';
 
 // Ce bloc remplace un bouton à deux états qui a coûté une donnée en production
 // le 12 août : « Poste loué » avait l'apparence d'un badge et le comportement
@@ -11,38 +12,9 @@ import { MaterielLoue, type Row, type ActionBody } from './RegistrationRow';
 // Ces tests verrouillent les deux règles qui en découlent : le matériel s'écrit
 // toujours en toutes lettres, et une location payée ne s'annule pas d'ici.
 
-const base: Row = {
-  uid: 'discord_1',
-  tmDisplayName: 'Fan2SkandeaR',
-  tmAccountId: 'a-b-c',
-  discordId: '179161896883060736',
-  firstName: 'Romain',
-  lastName: 'Pajot',
-  email: 'romain@example.org',
-  phone: null,
-  emergencyContact: null,
-  imageConsent: true,
-  countryCode: 'FR',
-  ageAtEvent: 29,
-  status: 'confirmed',
-  guardianConsent: 'not_required',
-  guardianDocs: {},
-  guardianRejectionReason: null,
-  registrationCode: 'LAN-RJDC',
-  appartenance: null,
-  companions: [],
-  payment: null,
-  pcRental: null,
-  seat: null,
-  checkedIn: false,
-  createdAt: null,
-  paidAt: null,
-  staffMessage: null,
-};
-
 function setup(pcRental: Row['pcRental']) {
   const onAct = vi.fn<(b: ActionBody) => void>();
-  render(<MaterielLoue row={{ ...base, pcRental }} onAct={onAct} pending={false} />);
+  render(<MaterielLoue row={{ ...baseRow, pcRental }} onAct={onAct} pending={false} />);
   return { onAct };
 }
 

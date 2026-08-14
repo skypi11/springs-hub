@@ -21,7 +21,8 @@ import { downloadCsv } from '@/lib/csv';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import Link from 'next/link';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, ExternalLink, MoreHorizontal, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, MoreHorizontal, ShieldAlert } from 'lucide-react';
+import CopyHandle from '@/components/ui/CopyHandle';
 import { getProfileHref } from '@/lib/user-slug';
 import { getStructureHref } from '@/lib/structure-slug';
 import { SANCTION_REASON_CODES } from '@/lib/competitions/sanctions';
@@ -540,23 +541,6 @@ function TeamLogo({ url, tag, name }: { url: string | null; tag: string; name: s
 }
 
 // @Discord copiable en un clic (carnet de contacts « pensé pour l'usage »).
-function CopyHandle({ handle }: { handle: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1200);
-    return () => clearTimeout(t);
-  }, [copied]);
-  return (
-    <button type="button" className="inline-flex items-center gap-1 hover:underline whitespace-nowrap"
-      style={{ color: 'var(--s-text-dim)' }} title="Copier le pseudo Discord"
-      onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(`@${handle}`).then(() => setCopied(true)).catch(() => {}); }}>
-      <span className="t-mono">@{handle}</span>
-      {copied ? <Check size={12} style={{ color: '#ffb46b' }} /> : <Copy size={12} />}
-    </button>
-  );
-}
-
 // Pastille de statut (marqueur carré + libellé) — couleur par état, jamais de
 // vert (réservé Trackmania) : l'absence d'alerte suffit comme signal positif.
 function StatusPill({ status }: { status: string }) {
@@ -982,7 +966,8 @@ function RegistrationRowView({
                           {s.warn && <span className="text-xs ml-1.5" style={{ color: '#ffb46b' }}>{s.warn}</span>}
                         </div>
                         <div style={cell}>
-                          {s.discord ? <CopyHandle handle={s.discord} /> : <span className="t-mono" style={{ color: 'var(--s-text-muted)' }}>—</span>}
+                          {/* Jamais de vert ici : il est réservé à Trackmania. */}
+                          {s.discord ? <CopyHandle handle={s.discord} confirmColor="#ffb46b" /> : <span className="t-mono" style={{ color: 'var(--s-text-muted)' }}>—</span>}
                         </div>
                       </Fragment>
                     );

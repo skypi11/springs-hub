@@ -10,7 +10,7 @@ import {
 import { api, apiDownload, ApiError } from '@/lib/api-client';
 import { downloadCsv } from '@/lib/csv';
 import RegistrationRow, {
-  needsAction, type ActionBody, type Row,
+  needsAction, matchesSearch, type ActionBody, type Row,
 } from '@/components/mania-cup/RegistrationRow';
 import MarkdownEditor from '@/components/ui/MarkdownEditor';
 import { LIMITS } from '@/lib/validation';
@@ -171,9 +171,9 @@ export default function AdminManiaCupPage() {
   const c = data?.counts;
 
   // La recherche porte sur tout ce par quoi on cherche quelqu'un dans la vraie
-  // vie : son pseudo, son nom, son adresse, son code. Sans accents ni casse,
-  // parce que personne ne tape « Amélie » avec l'accent dans un champ de
-  // recherche pressé.
+  // vie — pseudo Trackmania, pseudo Discord, nom, adresse, code, structure. Le
+  // détail est dans `matchesSearch`. Sans casse, parce que personne ne
+  // capitalise dans un champ de recherche pressé.
   const needle = search.trim().toLowerCase();
 
   // Ordre d'arrivée, une fois pour toutes : c'est lui qui arbitre quand les
@@ -184,13 +184,9 @@ export default function AdminManiaCupPage() {
   );
   const rang = new Map(parArrivee.map((r, i) => [r.uid, i + 1]));
 
-  const visibleRows = parArrivee.filter((r) => {
-    if (!matchesFilter(r, filter)) return false;
-    if (!needle) return true;
-    return [r.tmDisplayName, r.firstName, r.lastName, r.email, r.registrationCode, r.seat]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(needle));
-  });
+  const visibleRows = parArrivee.filter(
+    (r) => matchesFilter(r, filter) && matchesSearch(r, needle)
+  );
 
   const aTraiter = visibleRows.filter(needsAction).length;
 
@@ -208,7 +204,8 @@ export default function AdminManiaCupPage() {
    *  qui reste lisible si le réseau tombe. */
   function exportRoster() {
     const header = [
-      'Nom', 'Prénom', 'Pseudo Trackmania', 'Structure', 'Équipe', 'Code', 'Réglé', 'Âge', 'Mineur',
+      'Nom', 'Prénom', 'Pseudo Trackmania', 'Pseudo Discord',
+      'Structure', 'Équipe', 'Code', 'Réglé', 'Âge', 'Mineur',
       'Autorisation', 'Accompagnant', 'Billet accompagnant', 'Matériel loué',
       'Emplacement', 'Droit à l’image', 'E-mail', 'Téléphone', 'Contact d’urgence',
     ];
@@ -218,6 +215,10 @@ export default function AdminManiaCupPage() {
         r.lastName,
         r.firstName,
         r.tmDisplayName,
+        // Sans arobase : la neutralisation anti-formule la ferait précéder
+        // d'une apostrophe dans le tableur, et c'est le pseudo qu'on veut
+        // pouvoir recopier tel quel.
+        r.discordUsername ?? '',
         r.appartenance?.structure ?? '',
         r.appartenance?.team ?? '',
         r.registrationCode,
@@ -395,7 +396,7 @@ export default function AdminManiaCupPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nom, pseudo, e-mail, code…"
+              placeholder="Pseudo Trackmania ou Discord, nom, e-mail, code…"
               aria-label="Rechercher une inscription"
               className="settings-input has-icon w-full"
             />
@@ -484,6 +485,9 @@ export default function AdminManiaCupPage() {
             )}
             {' · '}une ligne s’ouvre au clic
           </p>
+          {/* 1250 px, comme avant la colonne Discord : mesuré, le cadre du
+              tableau fait 1254 px sur un écran 1920. Un pixel de plus et la
+              console gagnait un défilement horizontal qu'elle n'avait pas. */}
           <table className="w-full min-w-[1250px] border-collapse text-sm">
             <thead>
               {/* En-tête collant : à 64 dossiers on descend loin, et sans lui
@@ -492,7 +496,12 @@ export default function AdminManiaCupPage() {
                 className="sticky top-0 z-10 border-b border-white/10 text-left"
                 style={{ color: 'var(--s-text-muted)', background: 'var(--s-bg)' }}
               >
-                <th className="w-12 py-2.5 pr-2 pl-3 font-medium">
+                {/* Largeurs recalées à la mesure, pas à l'estimation : le
+                    cadre du tableau fait 1254 px sur un écran 1920, et la
+                    colonne Discord devait tenir dedans sans pousser le reste
+                    au défilement. Chaque retrait ci-dessous a été pris sur du
+                    vide constaté au rendu, jamais sur du texte. */}
+                <th className="w-10 py-2.5 pr-2 pl-3 font-medium">
                   <span title="Ordre d’arrivée">#</span>
                 </th>
                 {/* Le panel admin mange 560 px de largeur : ce qui reste au
@@ -501,18 +510,30 @@ export default function AdminManiaCupPage() {
                     contenu prévisible sont bornées ; le nom et les étiquettes
                     d'état se partagent le reste. */}
                 <th className="min-w-[150px] py-2.5 pr-4 font-medium">Joueur</th>
+                {/* Le pseudo Trackmania et le pseudo Discord n'ont souvent
+                    aucun rapport. Sans les deux côte à côte, savoir qui vient
+                    de s'inscrire demandait de fouiller.
+                    Étroite à dessein : une colonne de plus pousse le tableau
+                    vers le défilement horizontal, et un pseudo Discord tient
+                    en quinze caractères. */}
+                <th className="w-32 py-2.5 pr-4 font-medium">Discord</th>
                 {/* Une LAN voit arriver des clubs, pas seulement des individus :
                     savoir que trois inscrits viennent de la même structure
                     change l'accueil, le placement en salle et les badges.
                     « Structure » est le mot du site — on ne dit pas « écurie »
                     sur Trackmania. */}
                 <th className="w-44 py-2.5 pr-4 font-medium">Structure</th>
-                <th className="w-52 py-2.5 pr-4 font-medium">Contact</th>
-                <th className="w-32 py-2.5 pr-4 font-medium">Pays</th>
+                {/* Rétrécie pour financer la colonne Discord. L'adresse s'y
+                    tronque désormais sur les plus longues — elle reste entière
+                    dans le dossier, et c'est de là qu'on la copie. Le canal par
+                    lequel on joint vraiment quelqu'un est maintenant à
+                    gauche. */}
+                <th className="w-40 py-2.5 pr-4 font-medium">Contact</th>
+                <th className="w-28 py-2.5 pr-4 font-medium">Pays</th>
                 <th className="w-20 py-2.5 pr-4 font-medium">Âge</th>
                 <th className="w-28 py-2.5 pr-4 font-medium">Code</th>
-                <th className="w-40 py-2.5 pr-4 font-medium">Règlement</th>
-                <th className="min-w-[190px] py-2.5 pr-4 font-medium">État</th>
+                <th className="w-36 py-2.5 pr-4 font-medium">Règlement</th>
+                <th className="min-w-[170px] py-2.5 pr-4 font-medium">État</th>
                 <th className="w-10 py-2.5 pr-3" aria-label="Ouvrir le dossier" />
               </tr>
             </thead>

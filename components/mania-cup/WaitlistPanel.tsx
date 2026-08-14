@@ -1,8 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, Clock, X, Hourglass, SkipForward } from 'lucide-react';
+import CopyHandle from '@/components/ui/CopyHandle';
 import { api, ApiError } from '@/lib/api-client';
+import { getProfileHref } from '@/lib/user-slug';
 
 // La file d'attente, vue de l'organisation.
 //
@@ -17,7 +20,10 @@ export type LigneAttente = {
   expireA: number | null;
   expiree: boolean;
   nom: string;
-  discordId: string | null;
+  /** Le pseudo Discord, et l'adresse de son profil : la file affichait un nom
+   *  Trackmania seul, avec le même angle mort que la liste des inscrits. */
+  discordUsername: string | null;
+  slug: string | null;
   demandeLe: number;
 };
 
@@ -95,7 +101,23 @@ export default function WaitlistPanel({
             >
               {l.rang}
             </span>
-            <span className="min-w-[150px] flex-1 font-semibold">{l.nom}</span>
+            <Link
+              href={getProfileHref({ slug: l.slug, uid: l.uid })}
+              target="_blank"
+              title="Ouvrir son profil Aedral"
+              className="min-w-[150px] font-semibold hover:underline"
+            >
+              {l.nom}
+            </Link>
+            <span className="min-w-[130px] flex-1">
+              {l.discordUsername ? (
+                <CopyHandle handle={l.discordUsername} />
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+                  Discord inconnu
+                </span>
+              )}
+            </span>
 
             {l.statut === 'invited' && !l.expiree && (
               <>
