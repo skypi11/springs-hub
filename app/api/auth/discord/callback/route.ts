@@ -7,6 +7,7 @@ import { fetchValorantAccountByPuuid } from '@/lib/valorant-henrikdev';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { generateBaseSlug, generateUniqueSlug } from '@/lib/user-slug';
 import { sanitizeNext } from '@/lib/return-to';
+import { checkBanEvasionOnLogin } from '@/lib/ban-evasion-server';
 
 // Cas d'erreur OAuth : on redirige TOUJOURS vers "/" (jamais vers `next`),
 // pour éviter qu'une page profonde affiche un état bizarre. On nettoie
@@ -215,6 +216,13 @@ export async function GET(req: NextRequest) {
     // Synchronise pseudo serveur + rôles Discord sur le serveur Aedral.
     // No-op si l'utilisateur n'a pas rejoint le serveur. Ne throw jamais.
     await syncDiscordMember(db, uid);
+
+    // Ce compte partage-t-il un compte de JEU avec quelqu'un de banni ?
+    //
+    // Placé APRÈS l'écriture du profil : c'est là que les connexions Discord
+    // fraîchement récupérées sont en base, et ce sont elles qui portent
+    // l'empreinte. On ne bloque jamais ici — voir checkBanEvasionOnLogin.
+    await checkBanEvasionOnLogin(db, uid);
 
     // Le custom token Firebase NE doit PAS transiter par l'URL (logs Vercel,
     // historique navigateur, header Referer vers ressources externes). On le

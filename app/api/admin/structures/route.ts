@@ -10,6 +10,8 @@ import { writeAdminAuditLog, type AdminAuditAction } from '@/lib/admin-audit-log
 import { computeStaffSize } from '@/lib/structure-counters';
 import { addStructureToGame, removeStructureFromGame } from '@/lib/structure-membership';
 import { isKnownGame } from '@/lib/games-registry';
+import { findBanEvasionForUsers } from '@/lib/ban-evasion-server';
+import { describeMatches } from '@/lib/ban-evasion';
 
 const MAX_STRUCTURES = 500;
 
@@ -45,12 +47,31 @@ export async function GET(req: NextRequest) {
       return u?.displayName || u?.discordUsername || '';
     };
 
+    // Le fondateur d'une demande EN ATTENTE revient-il derrière un autre compte
+    // Discord ? C'est ici que ça se joue : la validation est humaine, il suffit
+    // que l'information soit sous les yeux de qui décide.
+    //
+    // Restreint aux demandes en attente — les seules où un choix est à faire —
+    // pour que le coût reste celui d'une poignée de lectures, et calculé à la
+    // volée plutôt que lu sur un drapeau qui pourrait être périmé.
+    const enAttente = snap.docs.filter(d => d.data().status === 'pending_validation');
+    const evasions = await findBanEvasionForUsers(
+      db,
+      enAttente
+        .map(d => d.data().founderId as string | undefined)
+        .filter((id): id is string => !!id)
+        .map(id => ({ ...(usersById.get(id) ?? {}), uid: id })),
+    ).catch(() => new Map());
+
     const structures = snap.docs.map(doc => {
       const data = doc.data();
+      const matches = data.founderId ? evasions.get(data.founderId as string) ?? [] : [];
       return {
         id: doc.id,
         ...data,
         founderName: nameOf(data.founderId),
+        /** Phrase prête à afficher, vide s'il n'y a rien à signaler. */
+        founderBanEvasion: matches.length > 0 ? describeMatches(matches) : null,
         reviewedByName: nameOf(data.reviewedBy),
         suspendedByName: nameOf(data.suspendedBy),
         deletionRequestedByName: nameOf(data.deletionRequestedBy),

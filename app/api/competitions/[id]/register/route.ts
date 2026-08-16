@@ -10,6 +10,7 @@ import { computeAge } from '@/lib/age';
 import { computeRefMmr, computeMmrFlags, analyzeLineups } from '@/lib/competitions/mmr';
 import { isGuildMember } from '@/lib/discord-competition';
 import { getBlockingSanctions } from '@/lib/competitions/sanctions';
+import { findBlockingEvasionForRoster } from '@/lib/ban-evasion-server';
 import { getRulebookForCompetition } from '@/lib/competitions/rulebooks';
 import { isCompetitionHidden } from '@/lib/competitions/visibility';
 import { buildTrackerGgUrl, type RLPlatform } from '@/lib/rl-platform';
@@ -377,6 +378,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       Promise.all(rosterUids.map(u => db.collection('users').doc(u).get())),
       Promise.all(rosterUids.map(u => db.collection('user_secrets').doc(u).get())),
     ]);
+
+    // ── Contournement de bannissement ────────────────────────────────────────
+    // Les sanctions ci-dessus visent un compte Discord, qui se refait en trente
+    // secondes. Ici on regarde les comptes de JEU : rang, achats, historique —
+    // ce qu'on ne recrée pas pour contourner une sanction. Seule une empreinte
+    // FORTE (identifiant immuable, possession vérifiée) peut refuser ; un
+    // simple pseuda identique ne ferme aucune porte, il alerte.
+    //
+    // Placé après le chargement des profils pour les réutiliser : le contrôle
+    // ne coûte que les lectures du registre.
+    const evasions = await findBlockingEvasionForRoster(db, {
+      users: rosterUids.map((u, i) => ({
+        ...(userSnaps[i].data() as Record<string, unknown>),
+        uid: u,
+        label: (userSnaps[i].data()?.displayName as string)
+          || (userSnaps[i].data()?.discordUsername as string)
+          || u,
+      })),
+      competitionId: id,
+      circuitId: (comp.circuitId as string | null) ?? null,
+    });
+    if (evasions.length > 0) {
+      const qui = evasions.map(e => e.label).join(' · ');
+      return NextResponse.json(
+        {
+          error: `Inscription refusée — ${qui} joue depuis un compte sanctionné. Contacte l'organisation si c'est une erreur.`,
+          banEvasion: evasions.map(e => ({ label: e.label })),
+        },
+        { status: 403 },
+      );
+    }
 
     const flags = new Set<RegistrationFlag>();
     const refMmrs: number[] = [];

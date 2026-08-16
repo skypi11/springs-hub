@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { captureApiError } from '@/lib/sentry';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
+import { revokeBannedIdentities } from '@/lib/ban-evasion-server';
 
 // PATCH /api/admin/competition-sanctions/[id] — révoquer une sanction (jamais
 // de delete : l'historique fait foi, il fonde l'escalade manuelle, spec §5).
@@ -35,6 +36,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await ref.update({ revokedAt: FieldValue.serverTimestamp(), revokedBy: uid });
 
     const tt = snap.data()?.targetType;
+    // Lever aussi les empreintes de jeu posées par cette sanction, avec la même
+    // précision : on ne touche qu'aux entrées de CETTE compétition, et jamais à
+    // un éventuel bannissement du site sur les mêmes comptes de jeu.
+    if (tt === 'user') {
+      await revokeBannedIdentities(db, {
+        uid: (snap.data()?.targetId as string) ?? '',
+        source: 'competition',
+        competitionId: (snap.data()?.competitionId as string | null) ?? null,
+        adminUid: uid,
+      });
+    }
     await writeAdminAuditLog(db, {
       action: 'competition_sanction_revoked',
       adminUid: uid,

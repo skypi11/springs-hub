@@ -13,7 +13,7 @@ import AdminUserRef from '@/components/admin/AdminUserRef';
 import ImpersonateButton from '@/components/admin/ImpersonateButton';
 import {
   Building2, CheckCircle, XCircle, Trash2, Loader2, ChevronDown, ChevronUp,
-  ExternalLink, Ban, RotateCcw, RefreshCw, Pencil, Users,
+  ExternalLink, Ban, RotateCcw, RefreshCw, Pencil, Users, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getProfileHref } from '@/lib/user-slug';
@@ -37,6 +37,10 @@ type StructureRequest = {
   message?: string;
   founderId: string;
   founderName: string;
+  /** Phrase d'alerte quand le fondateur partage un compte de jeu avec
+   *  quelqu'un de banni. Calculée au serveur, uniquement sur les demandes en
+   *  attente. Null = rien à signaler. */
+  founderBanEvasion?: string | null;
   status: string;
   reviewComment?: string;
   reviewedBy?: string;
@@ -284,6 +288,18 @@ export default function AdminStructuresPage() {
                         </span>
                       )}
                     </div>
+                    {/* Le seul endroit où ça compte vraiment : juste sous le nom
+                        du fondateur, au moment de décider. Rouge, jamais or —
+                        ce n'est pas une tâche à faire, c'est un avertissement. */}
+                    {s.founderBanEvasion && (
+                      <div
+                        className="mt-1.5 flex items-start gap-1.5 border px-2 py-1 text-xs"
+                        style={{ borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)', color: '#ff9b9b' }}
+                      >
+                        <AlertTriangle size={13} className="mt-px shrink-0" aria-hidden />
+                        <span className="text-left">{s.founderBanEvasion}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

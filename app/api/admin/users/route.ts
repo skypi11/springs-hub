@@ -10,6 +10,7 @@ import { bumpStructureCounter } from '@/lib/structure-counters';
 import { syncDiscordMember } from '@/lib/discord-role-sync';
 import { isKnownGame } from '@/lib/games-registry';
 import { isUserRostered } from '@/lib/recruitment';
+import { registerBannedIdentities, revokeBannedIdentities } from '@/lib/ban-evasion-server';
 
 // Quand un fondateur est banni/supprimé, on essaie de promouvoir son premier co-fondateur
 // pour ne pas laisser une structure sans tête. Si pas de co-fondateur, on passe la
@@ -248,6 +249,37 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { userId, action, reason, editData, membershipStructureId } = body;
 
+    // ── Action qui ne vise PERSONNE en particulier ───────────────────────────
+    //
+    // Traitée AVANT la garde ci-dessous, qui exige un `userId` et charge le
+    // compte correspondant. Greffée après, elle serait MORTE et répondrait
+    // « userId et action requis » — c'est exactement ce qui était arrivé aux
+    // rôles Discord de la Mania Cup le 8 août.
+    if (action === 'sync_ban_identities') {
+      const dbSync = getAdminDb();
+      const bannis = await dbSync.collection('users').where('isBanned', '==', true).get();
+      let comptes = 0;
+      let empreintes = 0;
+      for (const doc of bannis.docs) {
+        const d = doc.data();
+        const res = await registerBannedIdentities(dbSync, {
+          uid: doc.id,
+          label: (d.displayName as string) || (d.discordUsername as string) || doc.id,
+          reason: (d.banReason as string) || '',
+          source: 'site',
+          adminUid,
+        });
+        comptes++;
+        empreintes += res.registered;
+      }
+      return NextResponse.json({
+        success: true,
+        message: `${comptes} compte(s) banni(s) relu(s), ${empreintes} compte(s) de jeu enregistré(s).`,
+        comptes,
+        empreintes,
+      });
+    }
+
     if (!userId || !action) {
       return NextResponse.json({ error: 'userId et action requis' }, { status: 400 });
     }
@@ -277,18 +309,38 @@ export async function POST(req: NextRequest) {
         });
         // Révoquer les tokens Firebase pour forcer la déconnexion
         try { await authAdmin.revokeRefreshTokens(userId); } catch { /* user might not exist in Auth */ }
+        // Empreintes de ses comptes de JEU, avant toute suppression éventuelle
+        // du profil : c'est ce qui permettra de le reconnaître s'il revient
+        // sous un autre compte Discord. Le registre survit au compte.
+        const empreintes = await registerBannedIdentities(db, {
+          uid: userId,
+          label: userLabel,
+          reason: reason || '',
+          source: 'site',
+          adminUid,
+        });
         // Relais de propriété : promotion auto du 1er co-fondateur ou passage en `orphaned`
         const { promoted, orphaned } = await reassignOrOrphanFoundedStructures(db, userId);
         const parts = [`Utilisateur banni`];
         if (promoted.length) parts.push(`${promoted.length} structure(s) transférée(s) au premier co-fondateur`);
         if (orphaned.length) parts.push(`${orphaned.length} structure(s) orpheline(s)`);
+        parts.push(
+          empreintes.registered > 0
+            ? `${empreintes.registered} compte(s) de jeu enregistré(s) — il sera reconnu s'il revient sous un autre Discord`
+            : `aucun compte de jeu relié : il pourra revenir sans être reconnu`,
+        );
         await writeAdminAuditLog(db, {
           action: 'user_banned',
           adminUid,
           targetType: 'user',
           targetId: userId,
           targetLabel: userLabel,
-          metadata: { reason: reason || null, promotedStructures: promoted, orphanedStructures: orphaned },
+          metadata: {
+            reason: reason || null,
+            promotedStructures: promoted,
+            orphanedStructures: orphaned,
+            gameIdentitiesRegistered: empreintes.registered,
+          },
         });
         return NextResponse.json({ ok: true, message: parts.join(', ') });
       }
@@ -301,6 +353,10 @@ export async function POST(req: NextRequest) {
           bannedAt: null,
           bannedBy: null,
         });
+        // Lever aussi ses empreintes — sinon un débanni resterait signalé comme
+        // contournement à chacune de ses connexions. Ciblé : une éventuelle
+        // sanction de COMPÉTITION sur les mêmes comptes de jeu reste en place.
+        await revokeBannedIdentities(db, { uid: userId, source: 'site', adminUid });
         await writeAdminAuditLog(db, {
           action: 'user_unbanned',
           adminUid,

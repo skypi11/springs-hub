@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
 import { fetchDocsByIds } from '@/lib/firestore-helpers';
 import { captureApiError } from '@/lib/sentry';
+import { crossMatchBannedIdentities, describeMatches } from '@/lib/ban-evasion';
 
 const MAX_USERS_SCAN = 2000;
 const MAX_STRUCTURES_SCAN = 1000;
@@ -48,9 +49,16 @@ export async function GET(req: NextRequest) {
       db.collection('admin_audit_logs').orderBy('createdAt', 'desc').limit(200).get(),
     ]);
 
-    // Bannis
+    // Bannis.
+    //
+    // Le champ est `isBanned` — c'est celui qu'écrit l'action « ban » de
+    // /api/admin/users, et celui que lit `verifyAuth()` pour fermer la porte.
+    // Cette page filtrait sur `banned`, qui n'est écrit NULLE PART : elle a
+    // donc toujours annoncé « 0 utilisateur banni », y compris le lendemain
+    // d'un bannissement. Le ban fonctionnait, c'est le tableau de bord de la
+    // modération qui était aveugle.
     const bannedUsers = usersSnap.docs
-      .filter(d => d.data().banned === true)
+      .filter(d => d.data().isBanned === true)
       .map(d => {
         const data = d.data();
         return {
@@ -64,6 +72,35 @@ export async function GET(req: NextRequest) {
         };
       })
       .sort((a, b) => (b.bannedAt ?? '').localeCompare(a.bannedAt ?? ''));
+
+    // Contournements de bannissement probables.
+    //
+    // Croisé de mémoire sur les comptes déjà lus juste au-dessus : coût nul, et
+    // surtout ça voit les comptes créés AVANT l'existence du registre — qui
+    // n'apparaîtraient sinon qu'à leur prochaine connexion. Le registre, lui,
+    // couvre ce que ce croisement ne peut pas voir : les bannis dont le compte
+    // a été supprimé depuis.
+    const banEvasions = crossMatchBannedIdentities(
+      usersSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...data,
+          uid: d.id,
+          label: (data.displayName as string) || (data.discordUsername as string) || d.id,
+          isBanned: data.isBanned === true,
+          banReason: (data.banReason as string) ?? '',
+          bannedAt: ts(data.bannedAt),
+        };
+      }),
+    ).map(e => ({
+      uid: e.uid,
+      label: e.label,
+      description: describeMatches(e.matches),
+      /** Une empreinte forte est un identifiant immuable dont la possession est
+       *  prouvée ; une faible n'est qu'un pseudo identique. */
+      strong: e.matches.some(m => m.identity.strong),
+      bannedUid: e.matches[0]?.entry.uid ?? null,
+    }));
 
     // Structures en état critique
     const criticalStructures = structuresSnap.docs
@@ -156,8 +193,10 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({
+      banEvasions,
       summary: {
         bannedUsers: bannedEnriched.length,
+        banEvasions: banEvasions.length,
         pendingStructures: structuresEnriched.filter(s => s.status === 'pending_validation').length,
         suspendedStructures: structuresEnriched.filter(s => s.status === 'suspended').length,
         orphanedStructures: structuresEnriched.filter(s => s.status === 'orphaned').length,

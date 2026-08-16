@@ -55,9 +55,21 @@ type ModerationLog = {
   createdAt: string | null;
 };
 
+/** Un compte neuf qui rejoue le compte de jeu de quelqu'un de banni. */
+type BanEvasion = {
+  uid: string;
+  label: string;
+  description: string;
+  /** Empreinte forte = identifiant immuable dont la possession est prouvée.
+   *  Faible = un simple pseudo identique, qui mérite un regard, pas un verdict. */
+  strong: boolean;
+  bannedUid: string | null;
+};
+
 type ModerationData = {
   summary: {
     bannedUsers: number;
+    banEvasions: number;
     pendingStructures: number;
     suspendedStructures: number;
     orphanedStructures: number;
@@ -65,6 +77,7 @@ type ModerationData = {
     recentModerationActions: number;
   };
   bannedUsers: BannedUser[];
+  banEvasions: BanEvasion[];
   criticalStructures: CriticalStructure[];
   recentLogs: ModerationLog[];
   truncated: { users: boolean; structures: boolean };
@@ -105,7 +118,7 @@ export default function AdminModerationPage() {
   const confirm = useConfirm();
   const [data, setData] = useState<ModerationData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'banned' | 'structures' | 'logs'>('banned');
+  const [tab, setTab] = useState<'banned' | 'evasions' | 'structures' | 'logs'>('banned');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Rechargement déclenché par une action admin : on réaffiche le skeleton le
@@ -234,6 +247,7 @@ export default function AdminModerationPage() {
       <div className="flex gap-1 flex-wrap">
         {([
           { value: 'banned',     label: `Bannis (${data.bannedUsers.length})` },
+          { value: 'evasions',   label: `Contournements (${data.banEvasions?.length ?? 0})` },
           { value: 'structures', label: `Structures critiques (${data.criticalStructures.length})` },
           { value: 'logs',       label: `Actions récentes (${data.recentLogs.length})` },
         ] as const).map(t => (
@@ -315,6 +329,49 @@ export default function AdminModerationPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'evasions' && (
+        <div className="space-y-2">
+          {(data.banEvasions?.length ?? 0) === 0 && (
+            <EmptyState text="Aucun compte ne rejoue le compte de jeu d’un banni." />
+          )}
+          {(data.banEvasions ?? []).map(e => (
+            <div key={e.uid} className="panel p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <AdminUserRef uid={e.uid} name={e.label} layout="inline" />
+                    {/* La force de l'empreinte décide de ce qu'on peut en
+                        conclure : un identifiant immuable ne s'emprunte pas,
+                        un pseudo identique peut être une coïncidence. */}
+                    <span
+                      className="tag"
+                      style={e.strong
+                        ? { color: '#ff5555', borderColor: 'rgba(255,85,85,0.4)' }
+                        : { color: 'var(--s-text-dim)', borderColor: 'var(--s-border)' }}
+                    >
+                      {e.strong ? 'compte de jeu identique' : 'pseudo identique'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--s-text-dim)' }}>
+                    {e.description}
+                  </p>
+                </div>
+                <Link
+                  href={`/admin/users?q=${encodeURIComponent(e.label)}`}
+                  className="btn-springs btn-secondary bevel-sm shrink-0 text-xs"
+                >
+                  Ouvrir la fiche
+                </Link>
+              </div>
+            </div>
+          ))}
+          <p className="text-xs" style={{ color: 'var(--s-text-muted)' }}>
+            Un compte de jeu peut être partagé ou revendu : c’est un signalement,
+            pas un verdict. Rien n’est bloqué automatiquement sur le site.
+          </p>
         </div>
       )}
 

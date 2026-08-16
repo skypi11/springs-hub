@@ -38,6 +38,10 @@ export type NotificationType =
   | 'mania_cup_payment_revoked'
   | 'mania_cup_waitlist_invited'
   | 'mania_cup_registration'
+  /** Pour les ADMINS seulement : un compte neuf partage un compte de jeu avec
+   *  quelqu'un de banni. Jamais envoyée au joueur — lui dire ce qu'on a
+   *  reconnu, c'est lui indiquer quoi délier pour passer au travers. */
+  | 'ban_evasion_suspected'
   | 'generic';
 
 export type NotificationPayload = {

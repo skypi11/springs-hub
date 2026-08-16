@@ -9,6 +9,7 @@ import { serializeSanction, SANCTION_REASON_CODE_SET } from '@/lib/competitions/
 import { notifyCompetitionSanction } from '@/lib/competitions/sanctions-notify';
 import { withdrawRegistration } from '@/lib/competitions/withdraw-registration';
 import { createNotifications, type NotificationPayload } from '@/lib/notifications';
+import { registerBannedIdentities } from '@/lib/ban-evasion-server';
 import type { SanctionScope, SanctionTargetType, SanctionType } from '@/types/competitions';
 
 // Registre unifié des sanctions (warn / exclusion / ban) — géré par les admins
@@ -162,6 +163,26 @@ export async function POST(req: NextRequest) {
       revokedAt: null, revokedBy: null,
       notified: false,
     });
+
+    // Empreintes de ses comptes de jeu : sans elles, la sanction ne vise qu'un
+    // compte Discord, qui se refait en trente secondes. On n'enregistre que les
+    // sanctions qui ferment une porte — un `warn` est informatif.
+    //
+    // La portée voyage avec l'empreinte : un `ban` vaut pour toutes les
+    // compétitions, une `exclusion` seulement dans la sienne. Et dans les deux
+    // cas ça ne touche PAS au site : `source: 'competition'`.
+    if (targetType === 'user' && (type === 'ban' || type === 'exclusion')) {
+      await registerBannedIdentities(db, {
+        uid: targetId,
+        label: targetLabel,
+        reason,
+        source: 'competition',
+        sanctionType: type,
+        scope,
+        competitionId,
+      adminUid: uid,
+      });
+    }
 
     await writeAdminAuditLog(db, {
       action: 'competition_sanction_added',

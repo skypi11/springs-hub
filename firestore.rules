@@ -65,6 +65,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Empreintes des comptes de jeu bannis ────────────────────────────────
+    // STRICTEMENT serveur. Ce registre dit « ce compte Epic / Steam / Riot
+    // appartient à quelqu'un de banni, pour ce motif ». Le rendre lisible
+    // apprendrait à l'intéressé QUOI délier pour repasser au travers, et
+    // exposerait à tous les motifs de sanction d'autrui.
+    //
+    // Il survit volontairement à la suppression du compte banni : c'est ce qui
+    // permet de reconnaître un retour. Il ne contient que l'identifiant du
+    // compte de jeu, le pseudo au moment du bannissement, le motif et les
+    // dates. Voir lib/ban-evasion.ts.
+    match /banned_identities/{id} {
+      allow read, write: if false;
+    }
+
     // ── État cron (pagination cursor entre runs) ────────────────────────────
     // Privé : seul l'Admin SDK depuis les routes cron y écrit/lit. Aucun
     // intérêt côté client. Préfixe `_` = convention "collection système".
