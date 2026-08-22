@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type * as LeafletNS from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
+import { villesPourZoom } from '@/lib/carpool-cities';
 
 // La carte.
 //
@@ -11,19 +12,22 @@ import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
 // vue de tournoi : une bibliothèque impérative se conduit mieux depuis un effet
 // que réenveloppée dans des composants qui se remontent à chaque rendu.
 //
-// Fond sombre ET SANS LIBELLÉS. Deux raisons :
+// LE FOND DE CARTE, et pourquoi il y en a deux.
 //
-// · une carte OpenStreetMap classique poserait un rectangle blanc et bleu au
-//   milieu d'un site noir et or ;
-// · les fonds sombres gratuits n'existent qu'en anglais, et « ISLAND OF
-//   FRANCE » ou « BURGUNDY-FREE COUNTY » au milieu d'un site français, ça se
-//   voit. Plutôt que de subir une traduction approximative, on retire les
-//   libellés du fond et on pose LES NÔTRES : le pseudo sur chaque point, « LA
-//   LAN » sur la salle. Tout ce qui est écrit sur cette carte est donc écrit
-//   par nous, en français.
+// Une carte OpenStreetMap classique poserait un rectangle blanc et bleu au
+// milieu d'un site noir et or : il faut du sombre. Or les fonds sombres SANS
+// COMPTE (CARTO) n'existent qu'en anglais — « ISLAND OF FRANCE », « BURGUNDY-
+// FREE COUNTY » —, ce qui se voit immédiatement sur un site français.
 //
-// Le relief, les côtes et les frontières suffisent à se situer ; ce qu'on
-// cherche ici n'est pas un nom de ville mais QUI est sur sa route.
+// · Avec `NEXT_PUBLIC_JAWG_TOKEN` : Jawg sert un fond sombre AVEC les libellés
+//   en français (`lang=fr`). C'est la bonne réponse, et elle ne coûte qu'un
+//   compte gratuit.
+// · Sans clé : CARTO sans aucun libellé, et on écrit nos propres noms de
+//   villes (lib/carpool-cities.ts). Le repli reste lisible et français — il
+//   est juste moins riche.
+//
+// Dans les deux cas, ce qui compte vraiment est écrit par nous : « LA LAN » sur
+// la salle, et le pseudo du joueur avec sa ville de départ sur son point.
 
 export interface MapTrip {
   uid: string;
@@ -42,6 +46,10 @@ export interface MapDraft {
   kind: 'offer' | 'search';
 }
 
+/** Public par nature — une clé de tuiles voyage dans l'URL de chaque image.
+ *  À restreindre au domaine aedral.com depuis le tableau de bord Jawg. */
+const JAWG_TOKEN = process.env.NEXT_PUBLIC_JAWG_TOKEN?.trim() ?? '';
+
 const GOLD = '#FFB800';
 const GREEN = '#00D936';
 const NEUTRAL = '#eaeaf0';
@@ -57,6 +65,12 @@ function pin(color: string, opts: { hollow?: boolean; big?: boolean } = {}): str
     box-shadow:0 0 0 3px rgba(0,0,0,.55), 0 0 12px ${color}55;
     clip-path:polygon(28% 0,100% 0,100% 72%,72% 100%,0 100%,0 28%);
   "></span>`;
+}
+
+/** « Toulon, Var, France » → « Toulon ». Sur une carte, seule la commune
+ *  compte : le département et le pays sont déjà sous les yeux. */
+function villeCourte(label: string): string {
+  return label.split(',')[0].trim();
 }
 
 export default function CarpoolMap({
@@ -106,6 +120,8 @@ export default function CarpoolMap({
     const el = holder.current;
     if (!el) return;
 
+    let villesLayer: LeafletNS.LayerGroup | null = null;
+
     void (async () => {
       const L = (await import('leaflet')).default;
       if (annule || !holder.current || mapRef.current) return;
@@ -114,11 +130,40 @@ export default function CarpoolMap({
       const map = L.map(el, { zoomControl: true, attributionControl: true })
         .setView([destination.lat, destination.lng], 6);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      }).addTo(map);
+      if (JAWG_TOKEN) {
+        L.tileLayer(
+          `https://tile.jawg.io/jawg-dark/{z}/{x}/{y}{r}.png?access-token=${JAWG_TOKEN}&lang=fr`,
+          {
+            maxZoom: 18,
+            attribution:
+              '<a href="https://www.jawg.io?utm_medium=map&utm_source=attribution">&copy; Jawg</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          },
+        ).addTo(map);
+      } else {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+          maxZoom: 18,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        }).addTo(map);
+      }
+
+      // Nos noms de villes, seulement en repli : quand Jawg les fournit déjà,
+      // les redoubler ferait de la bouillie.
+      if (!JAWG_TOKEN) {
+        villesLayer = L.layerGroup().addTo(map);
+        const dessinerVilles = () => {
+          villesLayer?.clearLayers();
+          for (const v of villesPourZoom(map.getZoom())) {
+            L.marker([v.lat, v.lng], {
+              icon: L.divIcon({ html: `<span class="cp-ville">${v.n}</span>`, className: '', iconSize: [0, 0] }),
+              interactive: false,
+              keyboard: false,
+            }).addTo(villesLayer!);
+          }
+        };
+        dessinerVilles();
+        map.on('zoomend', dessinerVilles);
+      }
 
       map.on('click', (e: LeafletNS.LeafletMouseEvent) => {
         if (placingRef.current) clickRef.current(e.latlng.lat, e.latlng.lng);
@@ -190,7 +235,10 @@ export default function CarpoolMap({
       })
         // Permanente : c'est le pseudo qui identifie quelqu'un, pas sa
         // position. Sans lui, la carte n'est qu'un semis de points.
-        .bindTooltip(t.author.displayName, {
+        // Le pseudo ET la ville : les repères de fond ne couvrent pas les
+        // 35 000 communes de France, mais celle d'où part ce joueur est
+        // toujours nommée.
+        .bindTooltip(t.origin.label ? `${t.author.displayName} · ${villeCourte(t.origin.label)}` : t.author.displayName, {
           permanent: true, direction: 'top', offset: [0, -6],
           className: `cp-etiquette ${t.kind === 'offer' ? 'cp-etiquette-offre' : 'cp-etiquette-demande'}${actif ? '' : ' cp-etiquette-eteinte'}`,
         })
@@ -305,6 +353,19 @@ export default function CarpoolMap({
         /* Un trajet mis de côté s'efface avec son point plutôt que de
            continuer à crier son nom par-dessus celui qu'on regarde. */
         .cp-etiquette-eteinte { opacity: 0.25; }
+
+        /* Nos repères de fond : ils doivent se lire sans jamais concurrencer
+           les pseudos, qui sont l'information de la carte. */
+        .cp-ville {
+          position: absolute;
+          transform: translate(6px, -50%);
+          white-space: nowrap;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          color: rgba(234, 234, 240, 0.42);
+          text-shadow: 0 0 4px #0a0a0a, 0 0 4px #0a0a0a;
+          pointer-events: none;
+        }
       `}</style>
     </>
   );
