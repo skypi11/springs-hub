@@ -143,6 +143,17 @@ try {
     const arrivee = { lat: route.coordinates.at(-1)[0], lng: route.coordinates.at(-1)[1] };
     check('et arrive bien à la salle', km(arrivee, { lat: 46.9826, lng: 3.0932 }) < 5);
     check('tracé allégé pour le navigateur', route.coordinates.length < 600, `${route.coordinates.length} points`);
+    // Plausibilité — c'est ce qui attrape un profil de calcul cassé (piéton,
+    // vélo, unités en miles) que la seule présence d'un nombre ne montrerait
+    // pas. Le rapport route/vol d'oiseau d'un trajet routier français tient
+    // entre 1,1 et 1,6 ; la vitesse moyenne portière à portière, entre 60 et
+    // 115 km/h.
+    const volDOiseau = km(LYON, { lat: 46.9826, lng: 3.0932 });
+    const ratio = route.distanceM / 1000 / volDOiseau;
+    const vitesse = (route.distanceM / 1000) / (route.durationS / 3600);
+    console.log(`     → ${volDOiseau.toFixed(0)} km à vol d'oiseau, rapport ${ratio.toFixed(2)}, ${vitesse.toFixed(0)} km/h de moyenne`);
+    check('rapport route / vol d’oiseau plausible', ratio > 1.1 && ratio < 1.6, ratio.toFixed(2));
+    check('vitesse moyenne plausible (profil voiture)', vitesse > 60 && vitesse < 115, `${vitesse.toFixed(0)} km/h`);
   }
 
   step(3, 'Une étape rallonge le trajet, et le détour est chiffré');

@@ -87,6 +87,10 @@ function Legende({ routier }: { routier: boolean }) {
       <li className="flex items-center gap-1.5"><Pastille couleur="#FFB800" /> La salle de la LAN</li>
       <li className="flex items-center gap-1.5"><Pastille couleur="#00D936" /> Propose des places</li>
       <li className="flex items-center gap-1.5"><Pastille couleur="#eaeaf0" creuse /> Cherche une place</li>
+      {/* Une durée calculée sur le réseau routier ignore le trafic, les pauses
+          et les péages : le dire évite qu'on cale un rendez-vous dessus à la
+          minute près. */}
+      <li style={{ color: 'var(--s-text-muted)' }}>Durées estimées sans trafic</li>
       {!routier && (
         <li className="flex items-center gap-1.5">
           <span aria-hidden style={{ display: 'inline-block', width: 18, borderTop: '2px dashed var(--s-text-muted)' }} />
