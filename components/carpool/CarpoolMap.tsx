@@ -11,9 +11,19 @@ import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
 // vue de tournoi : une bibliothèque impérative se conduit mieux depuis un effet
 // que réenveloppée dans des composants qui se remontent à chaque rendu.
 //
-// Fond sombre : une carte OpenStreetMap classique poserait un rectangle blanc
-// et bleu au milieu d'un site noir et or. On garde un fond sombre et on ne
-// colore QUE ce qui porte du sens — les points et les tracés.
+// Fond sombre ET SANS LIBELLÉS. Deux raisons :
+//
+// · une carte OpenStreetMap classique poserait un rectangle blanc et bleu au
+//   milieu d'un site noir et or ;
+// · les fonds sombres gratuits n'existent qu'en anglais, et « ISLAND OF
+//   FRANCE » ou « BURGUNDY-FREE COUNTY » au milieu d'un site français, ça se
+//   voit. Plutôt que de subir une traduction approximative, on retire les
+//   libellés du fond et on pose LES NÔTRES : le pseudo sur chaque point, « LA
+//   LAN » sur la salle. Tout ce qui est écrit sur cette carte est donc écrit
+//   par nous, en français.
+//
+// Le relief, les côtes et les frontières suffisent à se situer ; ce qu'on
+// cherche ici n'est pas un nom de ville mais QUI est sur sa route.
 
 export interface MapTrip {
   uid: string;
@@ -104,7 +114,7 @@ export default function CarpoolMap({
       const map = L.map(el, { zoomControl: true, attributionControl: true })
         .setView([destination.lat, destination.lng], 6);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 18,
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -145,7 +155,10 @@ export default function CarpoolMap({
       icon: L.divIcon({ html: pin(GOLD, { big: true }), className: '', iconSize: [18, 18], iconAnchor: [9, 9] }),
       zIndexOffset: 1000,
     })
-      .bindTooltip(`${destination.label} — ${destination.address}`, { direction: 'top' })
+      .bindTooltip('LA LAN', {
+        permanent: true, direction: 'top', className: 'cp-etiquette cp-etiquette-salle',
+        offset: [0, -6],
+      })
       .addTo(layer);
 
     for (const t of trips) {
@@ -175,10 +188,12 @@ export default function CarpoolMap({
         }),
         opacity: actif ? 1 : 0.25,
       })
-        .bindTooltip(
-          `${t.author.displayName} — ${t.kind === 'offer' ? 'propose' : 'cherche'}${t.origin.label ? ` · ${t.origin.label}` : ''}`,
-          { direction: 'top' },
-        )
+        // Permanente : c'est le pseudo qui identifie quelqu'un, pas sa
+        // position. Sans lui, la carte n'est qu'un semis de points.
+        .bindTooltip(t.author.displayName, {
+          permanent: true, direction: 'top', offset: [0, -6],
+          className: `cp-etiquette ${t.kind === 'offer' ? 'cp-etiquette-offre' : 'cp-etiquette-demande'}${actif ? '' : ' cp-etiquette-eteinte'}`,
+        })
         .on('click', (e: LeafletNS.LeafletMouseEvent) => {
           e.originalEvent.stopPropagation();
           selectRef.current(t.uid);
@@ -208,7 +223,12 @@ export default function CarpoolMap({
           className: '', iconSize: [18, 18], iconAnchor: [9, 9],
         }),
         zIndexOffset: 900,
-      }).addTo(layer);
+      })
+        .bindTooltip('Toi', {
+          permanent: true, direction: 'top', offset: [0, -8],
+          className: 'cp-etiquette cp-etiquette-salle',
+        })
+        .addTo(layer);
       bounds.push([draft.origin.lat, draft.origin.lng]);
       for (const w of draft.waypoints) {
         L.circleMarker([w.lat, w.lng], { radius: 5, color: GOLD, weight: 2, fillColor: '#0a0a0a', fillOpacity: 1 })
@@ -266,6 +286,25 @@ export default function CarpoolMap({
           font-size: 12px;
         }
         .leaflet-tooltip::before { display: none; }
+
+        /* Nos étiquettes : posées sur la carte, elles doivent rester lisibles
+           sur n'importe quel fond sans faire un pavé opaque. */
+        .cp-etiquette {
+          background: rgba(10, 10, 10, 0.82);
+          border: none;
+          padding: 1px 6px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+          box-shadow: none;
+        }
+        .cp-etiquette-salle { color: #FFB800; }
+        .cp-etiquette-offre { color: #00D936; }
+        .cp-etiquette-demande { color: #eaeaf0; }
+        /* Un trajet mis de côté s'efface avec son point plutôt que de
+           continuer à crier son nom par-dessus celui qu'on regarde. */
+        .cp-etiquette-eteinte { opacity: 0.25; }
       `}</style>
     </>
   );

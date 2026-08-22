@@ -59,6 +59,44 @@ interface Payload {
   routing?: 'road' | 'straight';
 }
 
+/** Une pastille de légende, dessinée comme celles de la carte. */
+function Pastille({ couleur, creuse }: { couleur: string; creuse?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-block', width: 11, height: 11,
+        background: creuse ? 'transparent' : couleur,
+        border: `2px solid ${couleur}`,
+        clipPath: 'polygon(28% 0,100% 0,100% 72%,72% 100%,0 100%,0 28%)',
+      }}
+    />
+  );
+}
+
+/**
+ * La légende.
+ *
+ * Elle porte sa part du travail depuis que le fond de carte n'a plus de
+ * libellés : c'est elle qui dit ce que veut dire une pastille pleine, une
+ * pastille creuse, et un trait en pointillés.
+ */
+function Legende({ routier }: { routier: boolean }) {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs" style={{ color: 'var(--s-text-dim)' }}>
+      <li className="flex items-center gap-1.5"><Pastille couleur="#FFB800" /> La salle de la LAN</li>
+      <li className="flex items-center gap-1.5"><Pastille couleur="#00D936" /> Propose des places</li>
+      <li className="flex items-center gap-1.5"><Pastille couleur="#eaeaf0" creuse /> Cherche une place</li>
+      {!routier && (
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden style={{ display: 'inline-block', width: 18, borderTop: '2px dashed var(--s-text-muted)' }} />
+          Tracé à vol d’oiseau
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /**
  * Le conteneur des pages de la LAN.
  *
@@ -238,17 +276,25 @@ export default function CovoituragePage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="h-[420px] lg:h-[540px]">
-          <CarpoolMap
-            destination={ev.destination}
-            trips={trips}
-            me={data.me ?? null}
-            selectedUid={selected}
-            draft={editing ? { origin: draft.origin, waypoints: draft.waypoints, route: preview?.route ?? null, kind: draft.kind } : null}
-            placing={placing !== null}
-            onMapClick={onMapClick}
-            onSelect={setSelected}
-          />
+        {/* La hauteur fixe s'applique à la CARTE seule. En l'appliquant à la
+            colonne entière, la légende débordait de la cellule et venait
+            chevaucher la mention légale de quatre pixels. */}
+        <div>
+          <div className="h-[420px] lg:h-[540px]">
+            <CarpoolMap
+              destination={ev.destination}
+              trips={trips}
+              me={data.me ?? null}
+              selectedUid={selected}
+              draft={editing ? { origin: draft.origin, waypoints: draft.waypoints, route: preview?.route ?? null, kind: draft.kind } : null}
+              placing={placing !== null}
+              onMapClick={onMapClick}
+              onSelect={setSelected}
+            />
+          </div>
+          <div className="mt-4">
+            <Legende routier={data.routing !== 'straight'} />
+          </div>
         </div>
 
         <div className="space-y-4">
