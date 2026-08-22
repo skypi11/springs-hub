@@ -67,17 +67,12 @@ function pin(color: string, opts: { hollow?: boolean; big?: boolean } = {}): str
   "></span>`;
 }
 
-/** « Toulon, Var, France » → « Toulon ». Sur une carte, seule la commune
- *  compte : le département et le pays sont déjà sous les yeux. */
-function villeCourte(label: string): string {
-  return label.split(',')[0].trim();
-}
-
 export default function CarpoolMap({
   destination,
   trips,
   me,
   selectedUid,
+  focus,
   draft,
   placing,
   onMapClick,
@@ -87,6 +82,10 @@ export default function CarpoolMap({
   trips: MapTrip[];
   me: string | null;
   selectedUid: string | null;
+  /** Trajet sur lequel recadrer. Change uniquement sur un geste explicite
+   *  depuis la liste — jamais au fil des sélections sur la carte, ce qui
+   *  arracherait la vue des mains de qui la déplace. */
+  focus: { uid: string; at: number } | null;
   draft: MapDraft | null;
   /** Quand vrai, un clic sur la carte pose un point au lieu de déselectionner. */
   placing: boolean;
@@ -200,7 +199,7 @@ export default function CarpoolMap({
       icon: L.divIcon({ html: pin(GOLD, { big: true }), className: '', iconSize: [18, 18], iconAnchor: [9, 9] }),
       zIndexOffset: 1000,
     })
-      .bindTooltip('LA LAN', {
+      .bindTooltip(destination.label, {
         permanent: true, direction: 'top', className: 'cp-etiquette cp-etiquette-salle',
         offset: [0, -6],
       })
@@ -219,7 +218,14 @@ export default function CarpoolMap({
           // contexte général tout en isolant celui qu'on regarde.
           opacity: actif ? (mine ? 0.95 : 0.6) : 0.12,
           dashArray: t.route.kind === 'straight' ? '6 6' : undefined,
-        }).addTo(layer);
+          // Une ligne fine est difficile à viser : on élargit la zone de clic
+          // sans épaissir le trait.
+          bubblingMouseEvents: false,
+        })
+          .on('click', () => selectRef.current(t.uid))
+          .on('mouseover', (e: LeafletNS.LeafletMouseEvent) => e.target.setStyle({ weight: 6 }))
+          .on('mouseout', (e: LeafletNS.LeafletMouseEvent) => e.target.setStyle({ weight: mine ? 4 : 3 }))
+          .addTo(layer);
         for (const c of t.route.coordinates) bounds.push(c);
       }
 
@@ -235,10 +241,9 @@ export default function CarpoolMap({
       })
         // Permanente : c'est le pseudo qui identifie quelqu'un, pas sa
         // position. Sans lui, la carte n'est qu'un semis de points.
-        // Le pseudo ET la ville : les repères de fond ne couvrent pas les
-        // 35 000 communes de France, mais celle d'où part ce joueur est
-        // toujours nommée.
-        .bindTooltip(t.origin.label ? `${t.author.displayName} · ${villeCourte(t.origin.label)}` : t.author.displayName, {
+        // Le pseudo SEUL. La ville figurait à côté : elle doublonnait le fond
+        // de carte et encombrait l'affichage dès que deux points se touchaient.
+        .bindTooltip(t.author.displayName, {
           permanent: true, direction: 'top', offset: [0, -6],
           className: `cp-etiquette ${t.kind === 'offer' ? 'cp-etiquette-offre' : 'cp-etiquette-demande'}${actif ? '' : ' cp-etiquette-eteinte'}`,
         })
@@ -294,6 +299,18 @@ export default function CarpoolMap({
     }
   }, [pret, trips, me, selectedUid, draft, destination]);
 
+  // ── Recadrage à la demande ────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus) return;
+    const t = trips.find((x) => x.uid === focus.uid);
+    if (!t) return;
+    const points: [number, number][] = t.route?.coordinates?.length
+      ? t.route.coordinates
+      : [[t.origin.lat, t.origin.lng], [destination.lat, destination.lng]];
+    map.fitBounds(points, { padding: [50, 50] });
+  }, [focus, trips, destination]);
+
   return (
     <>
       <div
@@ -347,7 +364,11 @@ export default function CarpoolMap({
           white-space: nowrap;
           box-shadow: none;
         }
-        .cp-etiquette-salle { color: #FFB800; }
+        .cp-etiquette-salle {
+          color: #FFB800;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
         .cp-etiquette-offre { color: #00D936; }
         .cp-etiquette-demande { color: #eaeaf0; }
         /* Un trajet mis de côté s'efface avec son point plutôt que de

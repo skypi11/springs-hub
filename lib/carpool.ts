@@ -81,7 +81,7 @@ export const CARPOOL_EVENTS: Record<string, CarpoolEvent> = {
       // Géocodé une fois sur l'adresse exacte de la salle, jamais estimé.
       lat: 46.9826369,
       lng: 3.0932185,
-      label: 'Salle de la Mania Cup',
+      label: 'Springs Mania Cup',
       address: '19 rue des Charrons, 58180 Marzy',
     },
     window: { from: '2026-09-28T00:00', to: '2026-10-11T23:59' },
