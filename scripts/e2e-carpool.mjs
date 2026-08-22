@@ -29,7 +29,11 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3000';
 const API_KEY = 'AIzaSyBx4Goq8VR1I2MFf9L2wJm2TBaV-l_cCps';
 const P = 'e2e_carpool';
 const A = `discord_${P}_a`;
-const B = `discord_${P}_b`;
+const B = `discord_${P}_b`;
+/** Admin de COMPÉTITION seul : ni admin Aedral, ni inscrit à la LAN. Le piège
+ *  est que `isCompetitionAdmin` est vrai pour les deux rôles — tester avec un
+ *  admin complet ne prouverait donc rien. */
+const C = `discord_${P}_compadmin`;
 const EVENT = 'mania-cup';
 
 const LYON = { lat: 45.764, lng: 4.8357, label: 'Lyon' };
@@ -112,13 +116,14 @@ function km(a, b) {
 
 async function cleanup() {
   const batch = db.batch();
-  for (const uid of [A, B]) {
-    batch.delete(db.collection('carpool_trips').doc(`${EVENT}__${uid}`));
+  for (const uid of [A, B, C]) {
+    batch.delete(db.collection('carpool_trips').doc(`${EVENT}__${uid}`));
+    batch.delete(db.collection('competition_admins').doc(uid));
     batch.delete(db.collection('mania_cup_registrations').doc(uid));
     batch.delete(db.collection('users').doc(uid));
   }
   await batch.commit();
-  await Promise.all([A, B].map((u) => auth.deleteUser(u).catch(() => {})));
+  await Promise.all([A, B, C].map((u) => auth.deleteUser(u).catch(() => {})));
 }
 
 try {
@@ -134,6 +139,14 @@ try {
       uid, tmDisplayName: nom, status: 'confirmed', countryCode: 'FR', ageAtEvent: 25,
     });
   }
+  await auth.createUser({ uid: C }).catch(() => {});
+  await db.collection('users').doc(C).set({ displayName: 'E2E Admin compét', isDev: true });
+  await db.collection('competition_admins').doc(C).set({ addedBy: 'e2e', addedAt: new Date() });
+  // Garde du test lui-même : s'il était aussi admin Aedral, il ne prouverait rien.
+  const estAdminComplet = (await db.collection('aedral_admins').doc(C).get()).exists;
+  check('le compte de test n’est PAS admin Aedral', !estAdminComplet);
+
+
   check('inscriptions posées', true);
 
   step(1, 'Un visiteur non inscrit ne voit AUCUNE position');
@@ -266,6 +279,18 @@ try {
   }
   const anonLieux = await api(null, 'GET', `/api/carpool/${EVENT}/places?q=Moulins`);
   check('fermée aux non-connectés', anonLieux.status === 401);
+
+  step(9.5, 'Un admin de compétition voit la carte sans être inscrit');
+  // Signalé par Matt : « les admins compétition ne peuvent pas voir l'onglet
+  // covoiturage, ça leur dit de s'inscrire ». Toute la console de la LAN tourne
+  // sur ce rôle — il serait absurde de lui refuser la carte qu'il doit modérer.
+  const vueAdmin = await api(C, 'GET', `/api/carpool/${EVENT}`);
+  check('la carte lui est ouverte', vueAdmin.json?.allowed === true, JSON.stringify(vueAdmin.json).slice(0, 140));
+  check('et il voit les trajets', (vueAdmin.json?.trips ?? []).length >= 1);
+  check('il peut retirer le trajet d’un joueur', (await api(C, 'DELETE', `/api/carpool/${EVENT}?uid=${A}`)).status === 200);
+  // On le repose pour la suite.
+  await api(A, 'PUT', `/api/carpool/${EVENT}`, { kind: 'offer', origin: LYON, seats: 2 });
+
 
   step(10, 'Retirer son propre trajet');
   const del = await api(B, 'DELETE', `/api/carpool/${EVENT}`);

@@ -137,7 +137,7 @@ function ville(label: string): string {
 }
 
 export default function CovoituragePage() {
-  const { isAdmin, firebaseUser, loading: authLoading } = useAuth();
+  const { isAdmin, isCompetitionAdmin, firebaseUser, loading: authLoading } = useAuth();
   const qc = useQueryClient();
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [placing, setPlacing] = useState<null | 'origin' | 'waypoint'>(null);
@@ -367,7 +367,7 @@ export default function CovoituragePage() {
                             demandes={demandes}
                             moi={data.me ?? null}
                             choisi={selected === t.uid}
-                            estAdmin={isAdmin}
+                            estAdmin={isAdmin || isCompetitionAdmin}
                             onMontrer={() => montrer(t.uid)}
                             onSupprimer={() => void supprimer(t.uid)}
                           />

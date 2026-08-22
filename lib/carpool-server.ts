@@ -1,6 +1,6 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { MANIA_CUP_REGISTRATIONS } from '@/lib/mania-cup';
-import { isAdmin } from '@/lib/firebase-admin';
+import { isCompetitionAdmin } from '@/lib/firebase-admin';
 import { encodePolyline } from '@/lib/carpool';
 import type { CarpoolEvent, CarpoolTrip, GeoPoint, RouteGeometry, TripKind } from '@/lib/carpool';
 
@@ -38,7 +38,7 @@ export async function canParticipate(
     const snap = await db.collection(MANIA_CUP_REGISTRATIONS).doc(uid).get();
     if (snap.exists && snap.data()?.status !== 'cancelled') return true;
   }
-  return isAdmin(uid);
+  return isCompetitionAdmin(uid);
 }
 
 /** Le pseudo sous lequel on se connaît à la LAN, avec de quoi joindre la

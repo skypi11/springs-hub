@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyAuth, isAdmin } from '@/lib/firebase-admin';
+import { getAdminDb, verifyAuth, isCompetitionAdmin } from '@/lib/firebase-admin';
 import { limiters, rateLimitKey, checkRateLimit } from '@/lib/rate-limit';
 import { captureApiError } from '@/lib/sentry';
 import { writeAdminAuditLog } from '@/lib/admin-audit-log';
@@ -123,11 +123,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ e
     const db = getAdminDb();
     const cible = req.nextUrl.searchParams.get('uid');
 
-    // Retirer le trajet de QUELQU'UN D'AUTRE est un acte de modération : réservé
-    // aux administrateurs, et journalisé. C'est la différence avec une carte
-    // partagée, où le premier venu efface le travail des autres.
+    // Retirer le trajet de QUELQU'UN D'AUTRE est un acte de modération :
+    // réservé aux administrateurs, et journalisé. C'est la différence avec une
+    // carte partagée, où le premier venu efface le travail des autres.
+    //
+    // Même rôle que le reste de la console de l'événement : un admin de
+    // compétition qui gère la LAN doit pouvoir modérer sa carte.
     if (cible && cible !== uid) {
-      if (!(await isAdmin(uid))) {
+      if (!(await isCompetitionAdmin(uid))) {
         return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
       }
       await deleteTrip(db, ev.id, cible);
