@@ -379,6 +379,7 @@ export default function AdminManiaCupPage() {
       <FaqEditor />
       <TicketingSettings />
       <TierMapping />
+      <PurgeCovoiturage />
         </>
       )}
 
@@ -667,3 +668,83 @@ function RulebookPanel({
   );
 }
 
+/**
+ * Effacer la carte de covoiturage, une fois la LAN passée.
+ *
+ * La page de covoiturage annonce aux joueurs que leurs trajets sont supprimés
+ * après l'événement. Sans ce bouton, cette phrase n'aurait été qu'un texte :
+ * la fonction d'effacement existait dans le code et n'était appelée par
+ * personne. Une promesse faite aux joueurs sans moyen de la tenir.
+ *
+ * Irréversible, donc en deux temps, et journalisé.
+ */
+function PurgeCovoiturage() {
+  const [confirme, setConfirme] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const purge = useMutation({
+    mutationFn: () =>
+      api<{ efface: number }>('/api/admin/mania-cup', {
+        method: 'PATCH',
+        body: { action: 'purge_carpool', confirm: true },
+      }),
+    onSuccess: (r) => {
+      setConfirme(false);
+      setMessage(
+        r.efface === 0
+          ? 'Aucun trajet à effacer.'
+          : `${r.efface} trajet(s) effacé(s).`
+      );
+    },
+    onError: (e) => setMessage(e instanceof ApiError ? e.message : 'Effacement refusé'),
+  });
+
+  return (
+    <section className="mt-8 border border-white/10 bg-white/[0.02] p-6">
+      <h2 className="font-display text-2xl">Covoiturage</h2>
+      <p className="mt-3 max-w-2xl text-sm" style={{ color: 'var(--s-text-dim)' }}>
+        Les trajets posés par les joueurs disent où chacun se trouvait à une date
+        donnée. La page le leur annonce : tout est effacé une fois la LAN passée.
+        À faire après l’événement, pas avant.
+      </p>
+
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        {confirme ? (
+          <>
+            <button
+              onClick={() => purge.mutate()}
+              disabled={purge.isPending}
+              className="inline-flex items-center gap-2 border border-red-500/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+            >
+              {purge.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />}
+              Confirmer l’effacement de tous les trajets
+            </button>
+            <button
+              onClick={() => setConfirme(false)}
+              className="text-xs underline"
+              style={{ color: 'var(--s-text-dim)' }}
+            >
+              Annuler
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => { setConfirme(true); setMessage(null); }}
+            className="border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10"
+          >
+            Effacer la carte de covoiturage
+          </button>
+        )}
+        <Link
+          href="/mania-cup/covoiturage"
+          target="_blank"
+          className="text-sm underline"
+          style={{ color: 'var(--s-text-dim)' }}
+        >
+          Voir la carte
+        </Link>
+        {message && <span className="text-sm" style={{ color: 'var(--s-text-dim)' }}>{message}</span>}
+      </div>
+    </section>
+  );
+}

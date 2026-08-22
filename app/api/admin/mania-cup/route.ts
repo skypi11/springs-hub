@@ -14,7 +14,9 @@ import {
 } from '@/lib/mania-cup-waitlist';
 import { lireFileAttente, compterPlacesReglees } from '@/lib/mania-cup-waitlist-server';
 import { lireAppartenancesTM } from '@/lib/mania-cup-server';
+import { purgeTrips } from '@/lib/carpool-server';
 import {
+  MANIA_CUP,
   MANIA_CUP_REGISTRATIONS,
   isRentalPaid,
   type ManiaCupCompanion,
@@ -291,6 +293,33 @@ export async function PATCH(req: NextRequest) {
         // rejoindre le serveur.
         absentsDuServeur: absents,
       });
+    }
+
+    /** Effacer la carte de covoiturage, une fois l'événement passé.
+     *
+     *  Un trajet dit où quelqu'un se trouvait un jour donné : ça n'a plus
+     *  aucune raison d'être conservé après la LAN, et la page l'annonce aux
+     *  joueurs. Sans ce bouton, cette promesse n'aurait été qu'un texte —
+     *  `purgeTrips` existait et n'était appelée par personne.
+     *
+     *  Irréversible : exige une confirmation explicite dans la requête. */
+    if (action === 'purge_carpool') {
+      if (body?.confirm !== true) {
+        return NextResponse.json(
+          { error: 'Effacement non confirmé.', needsConfirm: true },
+          { status: 409 }
+        );
+      }
+      const efface = await purgeTrips(db, MANIA_CUP.slug);
+      await writeAdminAuditLog(db, {
+        action: 'carpool_trips_purged',
+        adminUid: uid,
+        targetType: 'user',
+        targetId: uid,
+        targetLabel: null,
+        metadata: { eventId: MANIA_CUP.slug, deleted: efface },
+      });
+      return NextResponse.json({ ok: true, efface });
     }
 
     // ── Liste d'attente ──────────────────────────────────────────────────────

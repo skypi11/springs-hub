@@ -13,6 +13,8 @@ import { sanitizeMetadata } from './audit-log';
 export type AdminAuditAction =
   /** Modération d'un trajet de covoiturage posé par un joueur. */
   | 'carpool_trip_deleted'
+  /** Effacement de TOUS les trajets d'un événement, après coup. */
+  | 'carpool_trips_purged'
   // Actions sur structures
   | 'structure_approved'
   | 'structure_rejected'
