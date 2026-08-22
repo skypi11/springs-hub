@@ -13,30 +13,26 @@ import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
 //
 // LE FOND DE CARTE.
 //
-// Il a fallu trois tentatives pour trouver la bonne réponse, et les deux
-// premières valent d'être notées pour qu'on ne les refasse pas.
+// Quatre tentatives. Les trois premières sont notées pour qu'on ne les refasse
+// pas, la quatrième est celle qui tient :
 //
-// 1. CARTO sombre AVEC libellés : le seul fond sombre gratuit sans compte,
-//    mais en anglais — « ISLAND OF FRANCE », « BURGUNDY-FREE COUNTY » au
-//    milieu d'un site français.
-// 2. CARTO sombre SANS libellés, en écrivant nos propres noms de villes : ça
-//    règle la langue, mais une liste ne suivra JAMAIS le zoom. Dès qu'on
-//    s'approche, les petites communes manquent — en ajouter deux cents ne fait
-//    que déplacer le mur d'un cran.
-// 3. Ce qui suit : les tuiles d'OpenStreetMap FRANCE, dont tous les libellés
-//    sont en français à tous les niveaux de zoom, ASSOMBRIES par un filtre.
+// 1. CARTO sombre AVEC libellés — le seul fond sombre gratuit sans compte, mais
+//    en anglais (« ISLAND OF FRANCE », « BURGUNDY-FREE COUNTY »).
+// 2. CARTO sombre SANS libellés + une liste de villes à nous — règle la langue,
+//    jamais le zoom : dès qu'on s'approche, les communes manquent.
+// 3. OpenStreetMap France assombri par filtre — tous les noms français à tous
+//    les zooms, mais un style dessiné pour un fond CLAIR : à l'échelle d'un
+//    pays, ses centaines de libellés forment un mur de texte illisible.
 //
-// Le filtre a été réglé au banc d'essai, pas à l'estime : l'inversion seule
-// donne un vert criard, et il faut une désaturation TOTALE pour obtenir un gris
-// neutre. C'est d'ailleurs plus conforme à la charte que le fond précédent, qui
-// tirait sur le bleu : le fond ne porte plus aucune couleur, et l'or de la
-// salle comme le vert des trajets sont les seules teintes de l'écran.
+// 4. Arbitrage de Matt : « utilise une belle et propre, même si elle est en
+//    clair ». C'est Positron — la référence des fonds minimalistes : peu de
+//    libellés, forte hiérarchie, aucun aplat criard. Le trajet et les points
+//    sont alors les seuls éléments colorés de l'écran, ce qui est exactement la
+//    règle de la charte.
 //
-// Appliqué au SEUL calque des tuiles : nos points, nos tracés et nos étiquettes
-// vivent dans d'autres calques et gardent donc leurs couleurs.
-//
-// Ce qui compte reste écrit par nous : le nom de l'événement sur la salle, le
-// pseudo du joueur sur son point de départ.
+// Nos couleurs sont donc calées pour un fond clair : le vert de marque
+// s'assombrit pour rester lisible sur du gris pâle, et les étiquettes gardent
+// leur pastille sombre — elle tranche aussi bien sur clair que sur sombre.
 
 export interface MapTrip {
   uid: string;
@@ -55,9 +51,13 @@ export interface MapDraft {
   kind: 'offer' | 'search';
 }
 
-const GOLD = '#FFB800';
-const GREEN = '#00D936';
-const NEUTRAL = '#eaeaf0';
+// Calées pour un fond CLAIR. L'or de la charte et son vert restent
+// reconnaissables, simplement assez soutenus pour tenir sur du gris pâle : le
+// #00D936 d'origine, très lumineux, s'évanouit sur du blanc.
+const GOLD = '#E09400';
+const GREEN = '#00A32A';
+/** Une demande de place : sombre et creuse, l'inverse d'une offre. */
+const NEUTRAL = '#1f1f24';
 
 /** Pastille carrée à coins biseautés — la signature du site, pas la goutte
  *  d'eau générique des cartes en ligne. */
@@ -67,7 +67,7 @@ function pin(color: string, opts: { hollow?: boolean; big?: boolean } = {}): str
   return `<span style="
     display:block;width:${size}px;height:${size}px;
     background:${fill};border:2px solid ${color};
-    box-shadow:0 0 0 3px rgba(0,0,0,.55), 0 0 12px ${color}55;
+    box-shadow:0 0 0 2px rgba(255,255,255,.9), 0 1px 4px rgba(0,0,0,.35);
     clip-path:polygon(28% 0,100% 0,100% 72%,72% 100%,0 100%,0 28%);
   "></span>`;
 }
@@ -129,14 +129,19 @@ export default function CarpoolMap({
       if (annule || !holder.current || mapRef.current) return;
       leafletRef.current = L;
 
-      const map = L.map(el, { zoomControl: true, attributionControl: true })
-        .setView([destination.lat, destination.lng], 6);
+      const map = L.map(el, {
+        zoomControl: true,
+        attributionControl: true,
+        // On ne dézoome pas au-delà : à ce niveau le fond entasse toute
+        // l'Europe en un mur de texte illisible, et personne ne covoiture
+        // depuis Zagreb pour une LAN dans la Nièvre.
+        minZoom: 5,
+      }).setView([destination.lat, destination.lng], 6);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
-        subdomains: 'abc',
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.openstreetmap.fr/">OpenStreetMap France</a>',
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       }).addTo(map);
 
       map.on('click', (e: LeafletNS.LeafletMouseEvent) => {
@@ -303,33 +308,26 @@ export default function CarpoolMap({
            chargement et pendant un déplacement rapide, en plein milieu d'un
            site noir. */
         .leaflet-container {
-          background: #0a0a0a;
+          background: #e8e8ec;
           font-family: inherit;
         }
-        /* L'assombrissement des tuiles françaises, réglé au banc d'essai.
-           La désaturation doit être TOTALE : à 0,15 il reste une dominante
-           verte très visible sur les zones boisées. Le contraste rattrape les
-           libellés, que l'assombrissement éteindrait sinon.
-           Sur le calque des TUILES uniquement — nos points et nos tracés sont
-           ailleurs et gardent leurs couleurs. */
-        .leaflet-tile-pane {
-          filter: invert(1) grayscale(1) brightness(0.8) contrast(1.45);
-        }
         .leaflet-control-attribution {
-          background: rgba(10, 10, 10, 0.75) !important;
-          color: var(--s-text-muted) !important;
+          background: rgba(255, 255, 255, 0.78) !important;
+          color: #5a5a68 !important;
           font-size: 10px;
         }
-        .leaflet-control-attribution a { color: var(--s-text-dim) !important; }
+        .leaflet-control-attribution a { color: #3a3a48 !important; }
+        /* Les commandes gardent l'habillage du site : sombres et biseautées,
+           elles signent la carte comme une carte d'Aedral et non un widget. */
         .leaflet-bar a {
           background: var(--s-surface) !important;
           color: var(--s-text) !important;
-          border-color: rgba(255, 255, 255, 0.12) !important;
+          border-color: rgba(0, 0, 0, 0.15) !important;
         }
         .leaflet-bar a:hover { background: var(--s-elevated) !important; }
         .leaflet-tooltip {
           background: var(--s-surface);
-          border: 1px solid rgba(255, 255, 255, 0.14);
+          border: 1px solid rgba(0, 0, 0, 0.18);
           color: var(--s-text);
           box-shadow: none;
           font-size: 12px;
@@ -339,7 +337,7 @@ export default function CarpoolMap({
         /* Nos étiquettes : posées sur la carte, elles doivent rester lisibles
            sur n'importe quel fond sans faire un pavé opaque. */
         .cp-etiquette {
-          background: rgba(10, 10, 10, 0.82);
+          background: rgba(12, 12, 16, 0.88);
           border: none;
           padding: 1px 6px;
           font-size: 11px;
@@ -353,7 +351,7 @@ export default function CarpoolMap({
           text-transform: uppercase;
           letter-spacing: 0.06em;
         }
-        .cp-etiquette-offre { color: #00D936; }
+        .cp-etiquette-offre { color: #3BE86A; }
         .cp-etiquette-demande { color: #eaeaf0; }
         /* Un trajet mis de côté s'efface avec son point plutôt que de
            continuer à crier son nom par-dessus celui qu'on regarde. */
