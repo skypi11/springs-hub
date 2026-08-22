@@ -1,7 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { MANIA_CUP_REGISTRATIONS } from '@/lib/mania-cup';
 import { isAdmin } from '@/lib/firebase-admin';
-import { flattenCoordinates, inflateCoordinates } from '@/lib/carpool';
+import { encodePolyline } from '@/lib/carpool';
 import type { CarpoolEvent, CarpoolTrip, GeoPoint, RouteGeometry, TripKind } from '@/lib/carpool';
 
 // Le stockage des trajets, et la porte d'entrée.
@@ -55,6 +55,36 @@ export interface StoredTrip extends CarpoolTrip {
   updatedAt: string | null;
 }
 
+/**
+ * Le tracé d'un trajet, ancien format compris.
+ *
+ * Avant le 22/08, il était stocké en liste de nombres aplatie et SIMPLIFIÉ à
+ * 500 m — ce qui faisait couper les virages. Les trajets déjà posés à cette
+ * date n'ont pas de `polyline` : plutôt que de les faire disparaître de la
+ * carte, on ré-encode ce qu'on a. Ils restent moins précis jusqu'à ce que leur
+ * auteur les réenregistre, ce qui les recalcule entièrement.
+ */
+function lireTrace(brut: unknown): RouteGeometry | null {
+  if (!brut || typeof brut !== 'object') return null;
+  const r = brut as RouteGeometry & { coordinates?: unknown };
+  if (typeof r.polyline === 'string' && r.polyline.length > 0) return r;
+
+  const plat = Array.isArray(r.coordinates) ? (r.coordinates as unknown[]) : [];
+  const points: [number, number][] = [];
+  for (let i = 0; i + 1 < plat.length; i += 2) {
+    const lat = Number(plat[i]);
+    const lng = Number(plat[i + 1]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) points.push([lat, lng]);
+  }
+  if (points.length < 2) return null;
+  return {
+    polyline: encodePolyline(points),
+    distanceM: Number(r.distanceM) || 0,
+    durationS: Number(r.durationS) || 0,
+    kind: r.kind === 'road' ? 'road' : 'straight',
+  };
+}
+
 function readTrip(data: FirebaseFirestore.DocumentData): CarpoolTrip {
   return {
     eventId: data.eventId ?? '',
@@ -62,11 +92,7 @@ function readTrip(data: FirebaseFirestore.DocumentData): CarpoolTrip {
     kind: (data.kind as TripKind) ?? 'search',
     origin: data.origin as GeoPoint,
     waypoints: (data.waypoints as GeoPoint[]) ?? [],
-    // Le tracé est stocké à plat (voir flattenCoordinates) : Firestore refuse
-    // une liste dans une liste.
-    route: data.route
-      ? { ...(data.route as RouteGeometry), coordinates: inflateCoordinates((data.route as { coordinates?: unknown }).coordinates) }
-      : null,
+    route: lireTrace(data.route),
     seats: Number(data.seats) || 1,
     departAt: data.departAt ?? null,
     returnAt: data.returnAt ?? null,
@@ -135,8 +161,6 @@ export async function saveTrip(
   await db.collection(COLLECTION).doc(tripDocId(ev.id, uid)).set(
     {
       ...trip,
-      // Aplati pour Firestore, qui interdit les listes imbriquées.
-      route: trip.route ? { ...trip.route, coordinates: flattenCoordinates(trip.route.coordinates) } : null,
       eventId: ev.id,
       uid,
       updatedAt: FieldValue.serverTimestamp(),

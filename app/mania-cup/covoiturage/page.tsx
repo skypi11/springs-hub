@@ -11,7 +11,7 @@ import CopyHandle from '@/components/ui/CopyHandle';
 import { getProfileHref } from '@/lib/user-slug';
 import TripEditor, { EMPTY_DRAFT, type Draft } from '@/components/carpool/TripEditor';
 import {
-  formatDistance, formatDuration, seekersNearRoute,
+  decodePolyline, formatDistance, formatDuration, seekersNearRoute,
   type CarpoolEvent, type GeoPoint, type RouteGeometry, type TripKind,
 } from '@/lib/carpool';
 
@@ -412,7 +412,7 @@ function CarteTrajet({
 
   // Les demandes qui longent CET itinéraire. C'est le calcul qui rend la carte
   // utile plutôt que jolie — et il est purement local.
-  const surLaRoute = offre && t.route ? seekersNearRoute(demandes, t.route.coordinates) : [];
+  const surLaRoute = offre && t.route ? seekersNearRoute(demandes, decodePolyline(t.route.polyline)) : [];
 
   return (
     <article

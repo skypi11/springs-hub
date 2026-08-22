@@ -1,6 +1,6 @@
 import {
   haversineMeters,
-  simplifyRoute,
+  encodePolyline,
   type CarpoolEvent,
   type GeoPoint,
   type RouteGeometry,
@@ -55,41 +55,35 @@ async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Respon
 /**
  * Lecture de la réponse d'OpenRouteService.
  *
- * Isolée et exportée pour être testable sans réseau, parce qu'elle porte le
- * piège classique de toute API cartographique : **GeoJSON ordonne les
- * coordonnées en [longitude, latitude]**, l'inverse de ce qu'attendent Leaflet
- * et le reste de ce module. Inverser les deux fait atterrir la France au large
- * de la Somalie, sans aucune erreur.
+ * On utilise le point d'entrée STANDARD, pas sa variante GeoJSON : il renvoie
+ * déjà la géométrie encodée, exactement dans le format qu'on stocke et que
+ * Leaflet redessinera. Aucune conversion, donc aucune perte — et plus aucune
+ * occasion d'inverser latitude et longitude en chemin, le piège classique de
+ * toute intégration cartographique.
  */
-export function parseOrsGeoJson(json: unknown): RouteGeometry | null {
-  const f = (json as { features?: unknown[] })?.features?.[0] as
-    | { geometry?: { coordinates?: [number, number][] }; properties?: { summary?: { distance?: number; duration?: number } } }
+export function parseOrsRoute(json: unknown): RouteGeometry | null {
+  const r = (json as { routes?: unknown[] })?.routes?.[0] as
+    | { geometry?: unknown; summary?: { distance?: number; duration?: number } }
     | undefined;
-  const coords = f?.geometry?.coordinates;
-  if (!Array.isArray(coords) || coords.length < 2) return null;
+  const polyline = typeof r?.geometry === 'string' ? r.geometry : '';
+  if (polyline.length < 2) return null;
 
-  const distanceM = Number(f?.properties?.summary?.distance);
-  const durationS = Number(f?.properties?.summary?.duration);
+  const distanceM = Number(r?.summary?.distance);
+  const durationS = Number(r?.summary?.duration);
   if (!Number.isFinite(distanceM) || !Number.isFinite(durationS)) return null;
 
-  return {
-    // [lng, lat] → [lat, lng].
-    coordinates: simplifyRoute(coords.map(([lng, lat]) => [lat, lng] as [number, number])),
-    distanceM,
-    durationS,
-    kind: 'road',
-  };
+  return { polyline, distanceM, durationS, kind: 'road' };
 }
+
 
 /** Le repli : une ligne brisée par les étapes, et une durée estimée. */
 export function straightLineRoute(points: { lat: number; lng: number }[]): RouteGeometry {
-  const coordinates = points.map((p) => [p.lat, p.lng] as [number, number]);
   let distanceM = 0;
   for (let i = 0; i < points.length - 1; i++) {
     distanceM += haversineMeters(points[i], points[i + 1]);
   }
   return {
-    coordinates,
+    polyline: encodePolyline(points.map((p) => [p.lat, p.lng] as [number, number])),
     distanceM,
     durationS: (distanceM / 1000 / FALLBACK_KMH) * 3600,
     kind: 'straight',
@@ -112,18 +106,18 @@ export async function computeRoute(
   if (!key) return straightLineRoute(points);
 
   try {
-    const res = await fetchWithTimeout(`${ORS}/v2/directions/driving-car/geojson`, {
+    const res = await fetchWithTimeout(`${ORS}/v2/directions/driving-car`, {
       method: 'POST',
       headers: {
         Authorization: key,
         'Content-Type': 'application/json',
-        Accept: 'application/geo+json',
+        Accept: 'application/json',
       },
       // ORS attend [longitude, latitude] — voir parseOrsGeoJson.
       body: JSON.stringify({ coordinates: points.map((p) => [p.lng, p.lat]) }),
     });
     if (!res.ok) return straightLineRoute(points);
-    const parsed = parseOrsGeoJson(await res.json());
+    const parsed = parseOrsRoute(await res.json());
     return parsed ?? straightLineRoute(points);
   } catch {
     return straightLineRoute(points);

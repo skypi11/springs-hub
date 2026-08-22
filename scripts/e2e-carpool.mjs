@@ -80,6 +80,28 @@ async function api(uid, method, path, body) {
   return { status: res.status, json };
 }
 
+/** Décodage du tracé encodé — copie minimale de lib/carpool.decodePolyline,
+ *  l'e2e étant en .mjs et ne pouvant pas importer le TypeScript. */
+function decode(encoded) {
+  const out = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < encoded.length) {
+    for (const axe of [0, 1]) {
+      let res = 0, dec = 0, octet;
+      do {
+        octet = encoded.charCodeAt(i++) - 63;
+        res |= (octet & 0x1f) << dec;
+        dec += 5;
+      } while (octet >= 0x20 && i < encoded.length);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (axe === 0) lat += d; else lng += d;
+    }
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
+
 /** Distance à vol d'oiseau, pour vérifier qu'un tracé part bien d'où on croit. */
 function km(a, b) {
   const r = (d) => (d * Math.PI) / 180;
@@ -136,13 +158,29 @@ try {
       'repli à vol d’oiseau — clé OPENROUTESERVICE_API_KEY absente ou refusée');
     // Lyon → Marzy fait ~300 km à vol d'oiseau : par la route, entre 300 et 500.
     check('distance plausible', route.distanceM > 250_000 && route.distanceM < 500_000, `${route.distanceM} m`);
-    const depart = { lat: route.coordinates[0][0], lng: route.coordinates[0][1] };
+    const pts = decode(route.polyline);
+    const depart = { lat: pts[0][0], lng: pts[0][1] };
     // LE piège de toute carte : [lng, lat] pris pour [lat, lng] envoie la
     // France au large de la Somalie sans lever la moindre erreur.
     check('le tracé part bien de Lyon (coordonnées non inversées)', km(depart, LYON) < 5, `${km(depart, LYON).toFixed(0)} km d’écart`);
-    const arrivee = { lat: route.coordinates.at(-1)[0], lng: route.coordinates.at(-1)[1] };
+    const arrivee = { lat: pts.at(-1)[0], lng: pts.at(-1)[1] };
     check('et arrive bien à la salle', km(arrivee, { lat: 46.9826, lng: 3.0932 }) < 5);
-    check('tracé allégé pour le navigateur', route.coordinates.length < 600, `${route.coordinates.length} points`);
+
+    // RÉGRESSION du 22/08 : le tracé était simplifié à 500 m de tolérance, ce
+    // qui faisait couper les virages — « je ne passe pas à travers les champs
+    // avec ma voiture ». Un itinéraire de 260 km compte des milliers de points ;
+    // s'il en reste quelques centaines, c'est qu'on l'a raboté.
+    console.log(`     → ${pts.length} points, ${route.polyline.length} caractères encodés`);
+    check('le tracé garde son détail (pas de simplification)', pts.length > 1000, `${pts.length} points`);
+    // Et surtout : aucun grand saut d'un point au suivant, sauf sur une vraie
+    // ligne droite d'autoroute.
+    let saut = 0;
+    for (let i = 1; i < pts.length; i++) {
+      saut = Math.max(saut, km({ lat: pts[i - 1][0], lng: pts[i - 1][1] }, { lat: pts[i][0], lng: pts[i][1] }));
+    }
+    console.log(`     → plus grand écart entre deux points consécutifs : ${(saut * 1000).toFixed(0)} m`);
+    check('aucune corde à travers champs', saut < 3, `${saut.toFixed(1)} km entre deux points`);
+    check('et ça reste léger', route.polyline.length < 60_000, `${route.polyline.length} caractères`);
     // Plausibilité — c'est ce qui attrape un profil de calcul cassé (piéton,
     // vélo, unités en miles) que la seule présence d'un nombre ne montrerait
     // pas. Le rapport route/vol d'oiseau d'un trajet routier français tient

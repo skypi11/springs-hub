@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type * as LeafletNS from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { decodePolyline } from '@/lib/carpool';
 import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
 
 // La carte.
@@ -190,14 +191,15 @@ export default function CarpoolMap({
       const actif = selectedUid === null || selectedUid === t.uid;
       const couleur = t.kind === 'offer' ? GREEN : NEUTRAL;
 
-      if (t.route && t.route.coordinates.length > 1) {
-        L.polyline(t.route.coordinates, {
+      const trace = t.route ? decodePolyline(t.route.polyline) : [];
+      if (trace.length > 1) {
+        L.polyline(trace, {
           color: couleur,
           weight: mine ? 4 : 3,
           // Les trajets non retenus s'effacent sans disparaître : on garde le
           // contexte général tout en isolant celui qu'on regarde.
           opacity: actif ? (mine ? 0.95 : 0.6) : 0.12,
-          dashArray: t.route.kind === 'straight' ? '6 6' : undefined,
+          dashArray: t.route?.kind === 'straight' ? '6 6' : undefined,
           // Une ligne fine est difficile à viser : on élargit la zone de clic
           // sans épaissir le trait.
           bubblingMouseEvents: false,
@@ -206,7 +208,7 @@ export default function CarpoolMap({
           .on('mouseover', (e: LeafletNS.LeafletMouseEvent) => e.target.setStyle({ weight: 6 }))
           .on('mouseout', (e: LeafletNS.LeafletMouseEvent) => e.target.setStyle({ weight: mine ? 4 : 3 }))
           .addTo(layer);
-        for (const c of t.route.coordinates) bounds.push(c);
+        for (const c of trace) bounds.push(c);
       }
 
       L.marker([t.origin.lat, t.origin.lng], {
@@ -247,8 +249,9 @@ export default function CarpoolMap({
     // Le brouillon, par-dessus tout le reste : c'est ce que la personne est en
     // train de composer, elle doit le voir même au milieu des autres.
     if (draft?.origin) {
-      if (draft.route && draft.route.coordinates.length > 1) {
-        L.polyline(draft.route.coordinates, { color: GOLD, weight: 4, opacity: 0.9 }).addTo(layer);
+      const traceBrouillon = draft.route ? decodePolyline(draft.route.polyline) : [];
+      if (traceBrouillon.length > 1) {
+        L.polyline(traceBrouillon, { color: GOLD, weight: 4, opacity: 0.9 }).addTo(layer);
       }
       L.marker([draft.origin.lat, draft.origin.lng], {
         icon: L.divIcon({
@@ -285,8 +288,9 @@ export default function CarpoolMap({
     if (!map || !focus) return;
     const t = trips.find((x) => x.uid === focus.uid);
     if (!t) return;
-    const points: [number, number][] = t.route?.coordinates?.length
-      ? t.route.coordinates
+    const trace = t.route ? decodePolyline(t.route.polyline) : [];
+    const points: [number, number][] = trace.length
+      ? trace
       : [[t.origin.lat, t.origin.lng], [destination.lat, destination.lng]];
     map.fitBounds(points, { padding: [50, 50] });
   }, [focus, trips, destination]);

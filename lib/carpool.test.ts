@@ -9,8 +9,8 @@ import {
   formatDuration,
   formatDetour,
   isWithinBounds,
-  flattenCoordinates,
-  inflateCoordinates,
+  encodePolyline,
+  decodePolyline,
   CARPOOL_LIMITS,
 } from './carpool';
 
@@ -208,25 +208,60 @@ describe('affichage', () => {
   });
 });
 
-describe('passage en base', () => {
-  // Régression du 17/08 : Firestore refuse une liste dans une liste. Le tracé
-  // étant une liste de paires, seul le chemin « je propose des places »
-  // plantait — en « Erreur serveur », sans rien dire de plus.
-  const trace: [number, number][] = [[48.8566, 2.3522], [47.9975, 2.7369], [46.9826, 3.0932]];
+describe('le tracé encodé', () => {
+  // RÉGRESSION du 22/08, signalée par Matt : « ton trait ne suit même pas les
+  // routes, tu tires des traits tout droits entre des points ! »
+  //
+  // Pour alléger, le tracé était simplifié à 500 m de tolérance. À l'échelle
+  // d'un pays ça ne se voyait pas ; en zoomant, la ligne coupait les virages et
+  // traversait les champs. L'encodage rend la simplification inutile : le même
+  // tracé, ENTIER, tient en quarante fois moins de place.
+  const trace: [number, number][] = [
+    [48.8566, 2.3522], [48.8012, 2.3891], [48.7203, 2.4455], [48.6001, 2.5012],
+  ];
 
-  it('aplatit le tracé — plus aucune liste imbriquée', () => {
-    const plat = flattenCoordinates(trace);
-    expect(plat).toEqual([48.8566, 2.3522, 47.9975, 2.7369, 46.9826, 3.0932]);
-    expect(plat.every((v) => typeof v === 'number')).toBe(true);
+  it('rend exactement les points qu’on lui a donnés', () => {
+    const rendu = decodePolyline(encodePolyline(trace));
+    expect(rendu).toHaveLength(trace.length);
+    rendu.forEach(([lat, lng], i) => {
+      // Précision 5 : l'écart est au pire d'un centième de millième de degré,
+      // soit moins d'un mètre. Aucun virage ne peut se perdre là-dedans.
+      expect(lat).toBeCloseTo(trace[i][0], 4);
+      expect(lng).toBeCloseTo(trace[i][1], 4);
+    });
   });
 
-  it('le reconstitue à l’identique', () => {
-    expect(inflateCoordinates(flattenCoordinates(trace))).toEqual(trace);
+  it('n’écarte AUCUN point, même très rapproché', () => {
+    // C'est le cœur du bug : un tracé de route est fait de points serrés dans
+    // les virages. Tout mécanisme qui en jette dessine une corde à travers
+    // champs.
+    const virage: [number, number][] = Array.from({ length: 200 }, (_, i) => [
+      45.5 + Math.sin(i / 12) * 0.004,
+      4.8 + i * 0.0002,
+    ]);
+    expect(decodePolyline(encodePolyline(virage))).toHaveLength(200);
   });
 
-  it('ne fabrique pas un point avec une demi-coordonnée', () => {
-    expect(inflateCoordinates([48.85, 2.35, 47.99])).toEqual([[48.85, 2.35]]);
-    expect(inflateCoordinates(null)).toEqual([]);
-    expect(inflateCoordinates(['a', 'b'])).toEqual([]);
+  it('compresse fortement — c’est ce qui permet de tout garder', () => {
+    const long: [number, number][] = Array.from({ length: 3000 }, (_, i) => [
+      45 + i * 0.0004, 3 + Math.sin(i / 50) * 0.01,
+    ]);
+    const encode = encodePolyline(long);
+    const enClair = JSON.stringify(long).length;
+    expect(encode.length).toBeLessThan(enClair / 4);
+    expect(decodePolyline(encode)).toHaveLength(3000);
+  });
+
+  it('supporte l’absence de tracé sans broncher', () => {
+    expect(decodePolyline('')).toEqual([]);
+    expect(decodePolyline(null as never)).toEqual([]);
+    expect(encodePolyline([])).toBe('');
+  });
+
+  it('encode aussi les latitudes et longitudes négatives', () => {
+    const sud: [number, number][] = [[-33.8688, 151.2093], [-34.0, -58.4]];
+    const rendu = decodePolyline(encodePolyline(sud));
+    expect(rendu[0][0]).toBeCloseTo(-33.8688, 4);
+    expect(rendu[1][1]).toBeCloseTo(-58.4, 4);
   });
 });

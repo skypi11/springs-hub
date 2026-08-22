@@ -27,8 +27,22 @@ export interface GeoPoint {
 }
 
 export interface RouteGeometry {
-  /** Le tracé, en [lat, lng]. */
-  coordinates: [number, number][];
+  /**
+   * Le tracé, encodé (algorithme « encoded polyline », précision 5).
+   *
+   * Pourquoi une chaîne et non une liste de points : un itinéraire de 650 km
+   * compte plusieurs milliers de points. En clair c'est 130 Ko par trajet, et
+   * plusieurs mégaoctets envoyés au navigateur quand trente joueurs ont posé
+   * le leur. Encodé, le même tracé pèse 3 Ko — on peut donc le garder ENTIER.
+   *
+   * L'ALLÉGER ÉTAIT LA FAUSSE BONNE IDÉE : à 500 m de tolérance, la ligne
+   * coupait les virages et traversait les champs dès qu'on zoomait. Un
+   * itinéraire qui ne suit pas la route ne sert à rien.
+   *
+   * Bonus : une chaîne passe telle quelle dans Firestore, qui refuse une
+   * liste de paires.
+   */
+  polyline: string;
   distanceM: number;
   durationS: number;
   /** `road` = calculé sur le réseau routier. `straight` = repli à vol d'oiseau
@@ -268,78 +282,64 @@ export function seekersNearRoute<T extends { origin: { lat: number; lng: number 
 }
 
 
-/**
- * Allège un tracé sans le déformer (Douglas-Peucker).
- *
- * Un itinéraire renvoyé par le calculateur compte plusieurs milliers de points
- * — de quoi peser 150 Ko par trajet, et faire transiter plusieurs mégaoctets
- * vers le navigateur quand trente joueurs ont posé le leur. À 500 m de
- * tolérance il en reste quelques centaines, la ligne reste identique à l'oeil,
- * et l'écart introduit est négligeable devant le seuil de 15 km qui sert à
- * dire « untel est sur ta route ».
- */
-export function simplifyRoute(
-  coords: [number, number][],
-  toleranceMeters = 500,
-): [number, number][] {
-  if (coords.length <= 2) return coords;
+// ── Encodage du tracé ────────────────────────────────────────────────────────
+//
+// L'algorithme « encoded polyline » : chaque point n'est stocké que par son
+// ÉCART au précédent, en centièmes de millième de degré, puis en base 64
+// imprimable. Sur une route les écarts sont minuscules, d'où un facteur de
+// compression d'environ quarante contre une liste de nombres.
 
-  const garder = new Array<boolean>(coords.length).fill(false);
-  garder[0] = true;
-  garder[coords.length - 1] = true;
+const PRECISION = 1e5;
 
-  // Pile explicite plutôt que récursion : un tracé long ferait déborder la
-  // pile d'appels sur un chemin serveur.
-  const pile: [number, number][] = [[0, coords.length - 1]];
-  while (pile.length > 0) {
-    const [debut, fin] = pile.pop()!;
-    if (fin <= debut + 1) continue;
-    const segment: [number, number][] = [coords[debut], coords[fin]];
-    let pire = -1;
-    let pireIdx = -1;
-    for (let i = debut + 1; i < fin; i++) {
-      const d = distanceToRouteMeters({ lat: coords[i][0], lng: coords[i][1] }, segment);
-      if (d > pire) { pire = d; pireIdx = i; }
-    }
-    if (pire > toleranceMeters && pireIdx > 0) {
-      garder[pireIdx] = true;
-      pile.push([debut, pireIdx], [pireIdx, fin]);
-    }
+function encodeValeur(v: number, sortie: string[]): void {
+  let x = v < 0 ? ~(v << 1) : v << 1;
+  while (x >= 0x20) {
+    sortie.push(String.fromCharCode((0x20 | (x & 0x1f)) + 63));
+    x >>= 5;
   }
-  return coords.filter((_, i) => garder[i]);
+  sortie.push(String.fromCharCode(x + 63));
 }
 
-// ── Passage en base ──────────────────────────────────────────────────────────
-
-/**
- * Firestore REFUSE une liste à l'intérieur d'une liste.
- *
- * Or un tracé est exactement ça : une liste de paires [lat, lng]. L'écriture
- * échoue en « Erreur serveur » sans rien dire de plus — et seul le chemin
- * « je propose des places » plantait, puisque lui seul porte un itinéraire.
- *
- * On l'aplatit donc en une simple liste de nombres au moment d'écrire, et on
- * la reconstitue à la lecture. Le reste du code continue de manipuler des
- * paires : la contorsion s'arrête à la frontière de la base.
- */
-export function flattenCoordinates(coords: [number, number][]): number[] {
-  const out: number[] = [];
-  for (const [lat, lng] of coords) out.push(lat, lng);
-  return out;
+export function encodePolyline(coords: [number, number][]): string {
+  const out: string[] = [];
+  let lat = 0;
+  let lng = 0;
+  for (const [la, ln] of coords) {
+    const nlat = Math.round(la * PRECISION);
+    const nlng = Math.round(ln * PRECISION);
+    encodeValeur(nlat - lat, out);
+    encodeValeur(nlng - lng, out);
+    lat = nlat;
+    lng = nlng;
+  }
+  return out.join('');
 }
 
-export function inflateCoordinates(flat: unknown): [number, number][] {
-  if (!Array.isArray(flat)) return [];
+export function decodePolyline(encoded: string): [number, number][] {
+  if (typeof encoded !== 'string' || encoded.length === 0) return [];
   const out: [number, number][] = [];
-  // Un nombre impair signifierait une paire tronquée : on l'ignore plutôt que
-  // de fabriquer un point à partir d'une moitié de coordonnée.
-  for (let i = 0; i + 1 < flat.length; i += 2) {
-    const lat = Number(flat[i]);
-    const lng = Number(flat[i + 1]);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) out.push([lat, lng]);
+  let i = 0;
+  let lat = 0;
+  let lng = 0;
+  while (i < encoded.length) {
+    for (const axe of [0, 1]) {
+      let resultat = 0;
+      let decalage = 0;
+      let octet = 0;
+      do {
+        octet = encoded.charCodeAt(i++) - 63;
+        resultat |= (octet & 0x1f) << decalage;
+        decalage += 5;
+      } while (octet >= 0x20 && i < encoded.length);
+      const delta = resultat & 1 ? ~(resultat >> 1) : resultat >> 1;
+      if (axe === 0) lat += delta;
+      else lng += delta;
+    }
+    out.push([lat / PRECISION, lng / PRECISION]);
   }
   return out;
 }
+
 
 // ── Affichage ────────────────────────────────────────────────────────────────
 
