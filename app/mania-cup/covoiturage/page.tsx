@@ -59,6 +59,23 @@ interface Payload {
   routing?: 'road' | 'straight';
 }
 
+/**
+ * Le conteneur des pages de la LAN.
+ *
+ * Toutes les autres — présentation, inscrits, FAQ, règlement, spectateurs —
+ * centrent leur contenu ; cette page-ci s'étalait sur toute la largeur et
+ * rompait la famille. `max-w-6xl` est la largeur que la présentation emploie
+ * déjà pour ses blocs les plus larges : la carte a la place qu'il lui faut sans
+ * sortir du rang.
+ */
+function Conteneur({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="text-[#eaeaf0]">
+      <div className="mx-auto max-w-6xl px-6 py-14">{children}</div>
+    </main>
+  );
+}
+
 /** « samedi 3 oct. à 08:00 » — la date brute est illisible dans une liste. */
 function quand(iso: string | null): string | null {
   if (!iso) return null;
@@ -149,9 +166,11 @@ export default function CovoituragePage() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="flex items-center gap-3 py-16" style={{ color: 'var(--s-text-dim)' }}>
-        <Loader2 className="animate-spin" size={20} /> Chargement de la carte…
-      </div>
+      <Conteneur>
+        <div className="flex items-center gap-3" style={{ color: 'var(--s-text-dim)' }}>
+          <Loader2 className="animate-spin" size={20} /> Chargement de la carte…
+        </div>
+      </Conteneur>
     );
   }
 
@@ -161,7 +180,7 @@ export default function CovoituragePage() {
   // ── Porte fermée ──────────────────────────────────────────────────────────
   if (!data.allowed) {
     return (
-      <div className="py-10">
+      <Conteneur>
         <h1 className="font-display text-4xl">Covoiturage</h1>
         <p className="mt-3 max-w-2xl" style={{ color: 'var(--s-text-dim)' }}>
           Les joueurs inscrits posent leur point de départ sur une carte, et l’itinéraire
@@ -181,7 +200,7 @@ export default function CovoituragePage() {
         <Link href="/mania-cup/inscription" className="btn-springs btn-primary bevel-sm mt-8 inline-flex">
           {data.authenticated ? 'M’inscrire à la LAN' : 'Me connecter et m’inscrire'}
         </Link>
-      </div>
+      </Conteneur>
     );
   }
 
@@ -196,7 +215,8 @@ export default function CovoituragePage() {
     : [];
 
   return (
-    <div className="space-y-6 py-8">
+    <Conteneur>
+      <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl">Covoiturage</h1>
@@ -218,7 +238,7 @@ export default function CovoituragePage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="h-[420px] lg:h-[620px]">
+        <div className="h-[420px] lg:h-[540px]">
           <CarpoolMap
             destination={ev.destination}
             trips={trips}
@@ -360,6 +380,7 @@ export default function CovoituragePage() {
         Springs E-Sport met en relation et n’organise pas le transport. Les trajets
         sont visibles des seuls joueurs inscrits, et effacés après l’événement.
       </p>
-    </div>
+      </div>
+    </Conteneur>
   );
 }
