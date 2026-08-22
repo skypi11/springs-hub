@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import type * as LeafletNS from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { GeoPoint, RouteGeometry } from '@/lib/carpool';
-import { villesPourZoom } from '@/lib/carpool-cities';
 
 // La carte.
 //
@@ -12,22 +11,32 @@ import { villesPourZoom } from '@/lib/carpool-cities';
 // vue de tournoi : une bibliothèque impérative se conduit mieux depuis un effet
 // que réenveloppée dans des composants qui se remontent à chaque rendu.
 //
-// LE FOND DE CARTE, et pourquoi il y en a deux.
+// LE FOND DE CARTE.
 //
-// Une carte OpenStreetMap classique poserait un rectangle blanc et bleu au
-// milieu d'un site noir et or : il faut du sombre. Or les fonds sombres SANS
-// COMPTE (CARTO) n'existent qu'en anglais — « ISLAND OF FRANCE », « BURGUNDY-
-// FREE COUNTY » —, ce qui se voit immédiatement sur un site français.
+// Il a fallu trois tentatives pour trouver la bonne réponse, et les deux
+// premières valent d'être notées pour qu'on ne les refasse pas.
 //
-// · Avec `NEXT_PUBLIC_JAWG_TOKEN` : Jawg sert un fond sombre AVEC les libellés
-//   en français (`lang=fr`). C'est la bonne réponse, et elle ne coûte qu'un
-//   compte gratuit.
-// · Sans clé : CARTO sans aucun libellé, et on écrit nos propres noms de
-//   villes (lib/carpool-cities.ts). Le repli reste lisible et français — il
-//   est juste moins riche.
+// 1. CARTO sombre AVEC libellés : le seul fond sombre gratuit sans compte,
+//    mais en anglais — « ISLAND OF FRANCE », « BURGUNDY-FREE COUNTY » au
+//    milieu d'un site français.
+// 2. CARTO sombre SANS libellés, en écrivant nos propres noms de villes : ça
+//    règle la langue, mais une liste ne suivra JAMAIS le zoom. Dès qu'on
+//    s'approche, les petites communes manquent — en ajouter deux cents ne fait
+//    que déplacer le mur d'un cran.
+// 3. Ce qui suit : les tuiles d'OpenStreetMap FRANCE, dont tous les libellés
+//    sont en français à tous les niveaux de zoom, ASSOMBRIES par un filtre.
 //
-// Dans les deux cas, ce qui compte vraiment est écrit par nous : « LA LAN » sur
-// la salle, et le pseudo du joueur avec sa ville de départ sur son point.
+// Le filtre a été réglé au banc d'essai, pas à l'estime : l'inversion seule
+// donne un vert criard, et il faut une désaturation TOTALE pour obtenir un gris
+// neutre. C'est d'ailleurs plus conforme à la charte que le fond précédent, qui
+// tirait sur le bleu : le fond ne porte plus aucune couleur, et l'or de la
+// salle comme le vert des trajets sont les seules teintes de l'écran.
+//
+// Appliqué au SEUL calque des tuiles : nos points, nos tracés et nos étiquettes
+// vivent dans d'autres calques et gardent donc leurs couleurs.
+//
+// Ce qui compte reste écrit par nous : le nom de l'événement sur la salle, le
+// pseudo du joueur sur son point de départ.
 
 export interface MapTrip {
   uid: string;
@@ -45,10 +54,6 @@ export interface MapDraft {
   route: RouteGeometry | null;
   kind: 'offer' | 'search';
 }
-
-/** Public par nature — une clé de tuiles voyage dans l'URL de chaque image.
- *  À restreindre au domaine aedral.com depuis le tableau de bord Jawg. */
-const JAWG_TOKEN = process.env.NEXT_PUBLIC_JAWG_TOKEN?.trim() ?? '';
 
 const GOLD = '#FFB800';
 const GREEN = '#00D936';
@@ -119,8 +124,6 @@ export default function CarpoolMap({
     const el = holder.current;
     if (!el) return;
 
-    let villesLayer: LeafletNS.LayerGroup | null = null;
-
     void (async () => {
       const L = (await import('leaflet')).default;
       if (annule || !holder.current || mapRef.current) return;
@@ -129,40 +132,12 @@ export default function CarpoolMap({
       const map = L.map(el, { zoomControl: true, attributionControl: true })
         .setView([destination.lat, destination.lng], 6);
 
-      if (JAWG_TOKEN) {
-        L.tileLayer(
-          `https://tile.jawg.io/jawg-dark/{z}/{x}/{y}{r}.png?access-token=${JAWG_TOKEN}&lang=fr`,
-          {
-            maxZoom: 18,
-            attribution:
-              '<a href="https://www.jawg.io?utm_medium=map&utm_source=attribution">&copy; Jawg</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          },
-        ).addTo(map);
-      } else {
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-          maxZoom: 18,
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        }).addTo(map);
-      }
-
-      // Nos noms de villes, seulement en repli : quand Jawg les fournit déjà,
-      // les redoubler ferait de la bouillie.
-      if (!JAWG_TOKEN) {
-        villesLayer = L.layerGroup().addTo(map);
-        const dessinerVilles = () => {
-          villesLayer?.clearLayers();
-          for (const v of villesPourZoom(map.getZoom())) {
-            L.marker([v.lat, v.lng], {
-              icon: L.divIcon({ html: `<span class="cp-ville">${v.n}</span>`, className: '', iconSize: [0, 0] }),
-              interactive: false,
-              keyboard: false,
-            }).addTo(villesLayer!);
-          }
-        };
-        dessinerVilles();
-        map.on('zoomend', dessinerVilles);
-      }
+      L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        subdomains: 'abc',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://www.openstreetmap.fr/">OpenStreetMap France</a>',
+      }).addTo(map);
 
       map.on('click', (e: LeafletNS.LeafletMouseEvent) => {
         if (placingRef.current) clickRef.current(e.latlng.lat, e.latlng.lng);
@@ -331,6 +306,15 @@ export default function CarpoolMap({
           background: #0a0a0a;
           font-family: inherit;
         }
+        /* L'assombrissement des tuiles françaises, réglé au banc d'essai.
+           La désaturation doit être TOTALE : à 0,15 il reste une dominante
+           verte très visible sur les zones boisées. Le contraste rattrape les
+           libellés, que l'assombrissement éteindrait sinon.
+           Sur le calque des TUILES uniquement — nos points et nos tracés sont
+           ailleurs et gardent leurs couleurs. */
+        .leaflet-tile-pane {
+          filter: invert(1) grayscale(1) brightness(0.8) contrast(1.45);
+        }
         .leaflet-control-attribution {
           background: rgba(10, 10, 10, 0.75) !important;
           color: var(--s-text-muted) !important;
@@ -375,18 +359,6 @@ export default function CarpoolMap({
            continuer à crier son nom par-dessus celui qu'on regarde. */
         .cp-etiquette-eteinte { opacity: 0.25; }
 
-        /* Nos repères de fond : ils doivent se lire sans jamais concurrencer
-           les pseudos, qui sont l'information de la carte. */
-        .cp-ville {
-          position: absolute;
-          transform: translate(6px, -50%);
-          white-space: nowrap;
-          font-size: 10px;
-          letter-spacing: 0.04em;
-          color: rgba(234, 234, 240, 0.42);
-          text-shadow: 0 0 4px #0a0a0a, 0 0 4px #0a0a0a;
-          pointer-events: none;
-        }
       `}</style>
     </>
   );
