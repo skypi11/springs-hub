@@ -24,6 +24,7 @@ const TABS = [
   { href: '/mania-cup/reglement', label: 'Règlement' },
   { href: '/mania-cup/faq', label: 'FAQ' },
   { href: '/mania-cup/inscrits', label: 'Inscrits' },
+  { href: '/mania-cup/covoiturage', label: 'Covoiturage' },
   // Une vraie page, pas une ancre : l'ancre ne défilait pas quand on était déjà
   // sur la présentation (clic sans effet), et surtout un spectateur n'a pas le
   // même besoin qu'un joueur — il veut savoir ce qu'il va voir et combien ça

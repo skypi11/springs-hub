@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   CheckCircle2, Circle, Loader2, AlertTriangle, ExternalLink,
-  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Hourglass, IdCard, Monitor,} from 'lucide-react';
+  ArrowLeft, ShieldCheck, Upload, FileCheck, UserPlus, Hourglass, IdCard, Monitor, MapPin,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api, apiPublic, apiForm, ApiError } from '@/lib/api-client';
 import CountrySelect from '@/components/ui/CountrySelect';
@@ -754,6 +755,8 @@ function Recap({
 
       <LocationPoste reg={reg} />
 
+      <Covoiturage />
+
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
         <p className="text-sm text-[#8d89a8]">
           Pseudo Trackmania enregistré :{' '}
@@ -1468,5 +1471,37 @@ function Banner({ tone, children }: { tone: 'warn' | 'error'; children: React.Re
       <AlertTriangle size={20} className="mt-0.5 shrink-0" aria-hidden />
       <div>{children}</div>
     </div>
+  );
+}
+
+/**
+ * L'entrée vers la carte de covoiturage.
+ *
+ * Posée dans l'espace du joueur parce que c'est là qu'on l'attrape : il vient
+ * de régler sa place, la question suivante est « comment j'y vais ». La page
+ * publique et l'onglet de navigation y mènent aussi, mais ce chemin-ci est
+ * celui que quelqu'un emprunte au bon moment.
+ */
+function Covoiturage() {
+  return (
+    <section className="panel bevel p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="font-display text-xl sm:text-2xl">Comment tu viens ?</h3>
+          <p className="mt-2 max-w-xl text-sm" style={{ color: 'var(--s-text-dim)' }}>
+            Pose ton point de départ sur la carte : l’itinéraire jusqu’à la salle se
+            trace tout seul, et les autres inscrits voient qui passe par où. Marzy est
+            au centre de la France, beaucoup de monde emprunte les mêmes routes.
+          </p>
+        </div>
+        <Link
+          href="/mania-cup/covoiturage"
+          className="btn-springs btn-secondary bevel-sm inline-flex shrink-0 items-center gap-2"
+        >
+          <MapPin size={15} aria-hidden />
+          Ouvrir la carte
+        </Link>
+      </div>
+    </section>
   );
 }

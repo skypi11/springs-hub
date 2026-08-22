@@ -11,6 +11,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { sanitizeMetadata } from './audit-log';
 
 export type AdminAuditAction =
+  /** Modération d'un trajet de covoiturage posé par un joueur. */
+  | 'carpool_trip_deleted'
   // Actions sur structures
   | 'structure_approved'
   | 'structure_rejected'

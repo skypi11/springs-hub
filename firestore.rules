@@ -65,6 +65,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Covoiturage vers un événement ───────────────────────────────────────
+    // STRICTEMENT serveur. Un trajet dit où quelqu'un se trouve à une date
+    // donnée : ça ne se lit que par l'API, qui vérifie que le lecteur est bien
+    // inscrit à l'événement concerné. Une lecture directe contournerait cette
+    // porte et exposerait les positions de tout le monde.
+    match /carpool_trips/{id} {
+      allow read, write: if false;
+    }
+
     // ── Empreintes des comptes de jeu bannis ────────────────────────────────
     // STRICTEMENT serveur. Ce registre dit « ce compte Epic / Steam / Riot
     // appartient à quelqu'un de banni, pour ce motif ». Le rendre lisible
